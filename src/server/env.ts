@@ -32,6 +32,19 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   TEST_DATABASE_URL: z.string().optional(),
+  /**
+   * The Postgres schema this application owns.
+   *
+   * In the shared Supabase project this is `groundtruth`, and the
+   * application connects as a dedicated role whose own search_path is pinned
+   * to that schema. The role has no privileges on any other schema, so the
+   * live tables in `public` are not merely untouched — they are invisible
+   * and unreachable from this application.
+   */
+  APP_DB_SCHEMA: z
+    .string()
+    .regex(/^[a-z_][a-z0-9_]*$/i, "APP_DB_SCHEMA must be a plain identifier")
+    .default("public"),
 
   SUPABASE_URL: z.string().min(1).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),

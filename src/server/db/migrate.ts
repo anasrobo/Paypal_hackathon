@@ -14,6 +14,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Sql } from "./client";
+import { getEnv } from "../env";
 
 export const MIGRATIONS_DIR = join(process.cwd(), "db", "migrations");
 
@@ -73,10 +74,19 @@ export async function runMigrations(
   return results;
 }
 
-/** Drop everything this app owns. Used by the test setup, never in production. */
+/**
+ * Drop everything this app owns, and nothing else.
+ *
+ * It drops the application's OWN schema — never `public`. In the shared
+ * Supabase project, `public` holds the live product's tables, and dropping
+ * it would be catastrophic. The schema name comes from APP_DB_SCHEMA, and it
+ * is validated as a plain identifier so it can never be interpolated into
+ * something dangerous.
+ */
 export async function resetSchema(sql: Sql): Promise<void> {
+  const schema = getEnv().APP_DB_SCHEMA;
   await sql.unsafe(`
-    DROP SCHEMA IF EXISTS public CASCADE;
-    CREATE SCHEMA public;
+    DROP SCHEMA IF EXISTS "${schema}" CASCADE;
+    CREATE SCHEMA "${schema}";
   `);
 }

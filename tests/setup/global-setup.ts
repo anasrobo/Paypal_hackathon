@@ -25,12 +25,19 @@ const PASSWORD = "postgres";
 let pg: EmbeddedPostgres | undefined;
 
 export async function setup(): Promise<void> {
-  const external = process.env.TEST_DATABASE_URL;
+  // SAFETY: the integration tests TRUNCATE tables. They must NEVER run
+  // against a shared or production database by accident. The embedded
+  // Postgres is used unless an external database is explicitly opted into
+  // with GT_USE_EXTERNAL_DB=1.
+  const allowExternal = process.env.GT_USE_EXTERNAL_DB === "1";
+  const external = allowExternal ? process.env.TEST_DATABASE_URL : undefined;
 
   if (external) {
     // An externally provided database (CI's service container, or a real
-    // Supabase project). Use it as-is.
+    // Supabase project). The services read DATABASE_URL, so it has to point
+    // at the same database as the tests.
     process.env.TEST_DATABASE_URL = external;
+    process.env.DATABASE_URL = external;
     return;
   }
 

@@ -93,12 +93,20 @@ export const mockPayPal: PayPalProvider = {
 
     // Deliver a genuinely signed webhook to our own endpoint, so the real
     // verification and idempotency path runs.
+    //
+    // The payload uses PayPal's REAL event shape: `event_type` at the top
+    // level, and the resource fields nested under `resource`. The mock has to
+    // be a faithful simulation, because the parser is written against the
+    // real format — a flat payload would be silently ignored and the bounty
+    // would sit at PAYING forever.
     await deliverWebhook({
       id: `MOCK-EVT-${key.slice(0, 20).toUpperCase()}`,
-      type: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
-      item_id: itemId,
-      sender_batch_id: input.senderBatchId,
-      payout_item_status: "SUCCESS",
+      event_type: "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+      resource: {
+        payout_item_id: itemId,
+        sender_batch_id: input.senderBatchId,
+        payout_item_status: "SUCCESS",
+      },
     });
 
     return { batchId, itemId, status: "SUCCESS" };

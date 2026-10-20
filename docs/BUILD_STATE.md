@@ -1,10 +1,10 @@
 <!-- GROUNDTRUTH:BUILD_STATE:BEGIN -->
-phase: 2
+phase: 3
 status: IN_PROGRESS
-task: T2-12
-last_test: 63 passed / 0 failed, 4 migrations applied
+task: T3-06
+last_test: 83 passed / 0 failed, 4 migrations applied to real Supabase
 attempts: 0
-commit: 50f64b0282723988e125daf83b77d543879e49b8
+commit: 8616390bb4b274593abcdb4b71f74976b4e46295
 <!-- GROUNDTRUTH:BUILD_STATE:END -->
 
 # Build state
@@ -32,8 +32,8 @@ commit: 50f64b0282723988e125daf83b77d543879e49b8
 |---|---|---|---|---|
 | P0 Safe bootstrap | COMPLETE | — | guards green, build green | branch `feat/groundtruth-bootstrap`, baseline `e73f4e5` |
 | P1 Pure domain | COMPLETE | — | 63 unit tests passed | state machine, gate, money, geo |
-| P2 Server core | IN_PROGRESS | — | 4 migrations applied, 63 tests passed | env, db, tokens, storage, vision, paypal, services done; invariant tests pending |
-| P3 Route handlers | NOT_STARTED | — | — | |
+| P2 Server core | COMPLETE | — | 83 tests passed, 4 migrations applied | env, db, tokens, storage, vision, paypal, services |
+| P3 Route handlers | IN_PROGRESS | — | typecheck clean | health, webhook, claim, uploads/sign, cron, ops/ledger written |
 | P4 Screens + AG Grid | NOT_STARTED | — | — | |
 | P5 Seed + E2E | NOT_STARTED | — | — | |
 | P6 Deploy | NOT_STARTED | — | — | blocked on Supabase project |
@@ -86,6 +86,14 @@ Recorded once, so nobody re-derives them.
 - The repo's `LICENSE` is **GPL-3.0** and must stay byte-identical. AG Grid
   Enterprise is commercial and therefore a licence violation — Community only.
 - Baseline commit for rollback: `e73f4e5639a8007e1fc4c695517dd6fe241e6808`.
+- **Supabase is live and isolated.** The app connects to a dedicated
+  DATABASE `groundtruth` on the shared project, through the transaction
+  pooler at `aws-1-ap-south-1.pooler.supabase.com:6543`, as the role
+  `groundtruth_app`, with its own schema `groundtruth`. The live
+  DataCleanist data is in the `postgres` database and is unreachable from
+  here. The empty schema this build had created in the live database was
+  removed. The Storage bucket `groundtruth-evidence` is private.
+  See D-013 and D-014.
 - **Git pushes work.** The `github_anas` MCP server is a remote HTTP server
   whose `Authorization` header carries an `anasrobo` token with push and admin
   rights on `anasrobo/Paypal_hackathon`. It is embedded in the LOCAL remote

@@ -9,6 +9,10 @@
  * `npm run db:local`.
  */
 
+import { loadLocalEnv } from "./load-env";
+
+loadLocalEnv();
+
 import { closeDb, db } from "../src/server/db/client";
 import { resetSchema, runMigrations } from "../src/server/db/migrate";
 

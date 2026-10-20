@@ -294,3 +294,58 @@ argument would clobber it. The baseline commit
 machine, so it cannot authenticate.
 
 **Revisit if.** A GitHub PAT is configured for the local git client.
+
+---
+
+## D-013 — A dedicated DATABASE in the shared Supabase project, not a separate project
+
+**Date:** 2026-10-20
+**Status:** FROZEN
+**Supersedes:** D-001 (a new, isolated Supabase *project*)
+
+**Decision.** GroundTruth uses a dedicated DATABASE named `groundtruth` on the
+existing Supabase project, accessed as a dedicated role `groundtruth_app`
+through the transaction pooler. The application's schema inside that
+database is `groundtruth`. The live product's data lives in the `postgres`
+database of the same instance and is unreachable from this application.
+
+**Rationale.** A separate project WAS created (`ipwrpaqojpzkpyxyggym`, region
+`us-east-1`) and it is alive, but the personal access token in the MCP
+config only resolves the DataCleanist project, so the new project's database
+password and API keys cannot be read through the management API. The
+dedicated-database approach is, in one respect, STRONGER than a separate
+project: a Postgres connection is bound to a database, so a connection to
+`groundtruth` physically cannot see the tables in `postgres`. The app role
+owns only its own database, holds no grants on any live table, and its
+`search_path` names only its own schema. The live database was verified
+unaffected, and the empty schema this build had earlier created in it was
+removed.
+
+**Rejected alternative.** A separate Supabase project, blocked by the
+credential's project scope.
+
+**Revisit if.** The user grants a project-scoped credential for the
+`groundtruth` project, at which point that project can be used directly.
+
+---
+
+## D-014 — The pooler, not the direct host
+
+**Date:** 2026-10-20
+**Status:** FROZEN
+
+**Decision.** The application connects through
+`aws-1-ap-south-1.pooler.supabase.com:6543` (the transaction pooler).
+
+**Rationale.** The direct host `db.<ref>.supabase.co` does not resolve from
+this machine and is IPv6-only, so Vercel cannot reach it either. The
+transaction pooler is the only working route. Two further details cost real
+debugging time and are recorded so they are not rediscovered: the pooler
+resolves a custom role on the `aws-1` instance and not on `aws-0`, and the
+pooler CACHES both the user's password hash and the role's `search_path`, so
+a password changed server-side can be rejected until the cache catches up.
+The role's `search_path` is therefore pinned to the same schema name the
+pooler cached.
+
+**Revisit if.** The app ever needs a session-scoped setting that the
+transaction pooler cannot carry.

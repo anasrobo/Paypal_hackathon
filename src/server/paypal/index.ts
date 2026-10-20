@@ -23,8 +23,12 @@ export { SIGNATURE_HEADER, signBody, verifySignature } from "./sign";
 let cached: PayPalProvider | null = null;
 
 export function getPayPalProvider(): PayPalProvider {
-  if (cached) return cached;
+  // The environment is validated on EVERY call, even when the provider is
+  // cached. A cached provider must never be able to mask an invalid
+  // environment, because the environment is what decides which PayPal host
+  // the application can reach.
   const { PAYPAL_PROVIDER } = getEnv();
+  if (cached) return cached;
   cached = PAYPAL_PROVIDER === "sandbox" ? sandboxPayPal : mockPayPal;
   return cached;
 }
