@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["bom1"],
+  "crons": [
+    {
+      "path": "/api/cron/reconcile",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile?op=keepalive",
+      "schedule": "30 6 * * *"
+    }
+  ]
+}

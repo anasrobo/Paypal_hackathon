@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/* ===========================================================================
+   GroundTruth — design tokens
+
+   A dense, calm instrument panel. Near-black surfaces, hairline borders,
+   monospaced tabular numbers everywhere, and exactly ONE accent colour
+   reserved for money. No gradients, no glassmorphism, no emoji.
+
+   The colour ramp is a traffic light, because this is a ledger:
+     money  = the money path (VERIFIED, PAID, amounts)
+     warn   = in flight
+     danger = blocked, failed, rejected
+     info   = links and machine-generated detail
+   =========================================================================== */
+
+@theme {
+  /* surfaces */
+  --color-ink: #0b0d10;
+  --color-raised: #14171c;
+  --color-overlay: #1b1f26;
+  --color-line: #232830;
+  --color-line-strong: #313844;
+
+  /* text */
+  --color-text: #e7eaf0;
+  --color-muted: #8a93a3;
+  --color-faint: #5a6270;
+
+  /* accents */
+  --color-money: #3ddc97;
+  --color-money-dim: #17553d;
+  --color-warn: #f5b544;
+  --color-warn-dim: #55400f;
+  --color-danger: #f87171;
+  --color-danger-dim: #55201f;
+  --color-info: #7aa2f7;
+  --color-info-dim: #23345c;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-geist-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-money);
+    color: var(--color-ink);
+  }
+
+  /* A focus ring you can actually see on a dark panel. */
+  :focus-visible {
+    outline: 2px solid var(--color-money);
+    outline-offset: 2px;
+  }
+
+  /* Scrollbars that do not break the instrument illusion. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-line-strong);
+    border-radius: 6px;
+    border: 3px solid var(--color-ink);
+  }
+}
+
+@layer components {
+  /* A raised panel. The only container primitive in the product. */
+  .panel {
+    background-color: var(--color-raised);
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+  }
+
+  /* Every number in the product uses this: monospaced, tabular, right-aligned. */
+  .num {
+    font-family: var(--font-geist-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* Small caps label used above dense data groups. */
+  .label {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+  }
+}

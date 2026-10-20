@@ -1,0 +1,388 @@
+/**
+ * The ops ledger query.
+ *
+ * ONE pure SQL builder, shared by the ops grid, the requester console and
+ * the KPI aggregate. One implementation means the console and the grid can
+ * never disagree about what a filter means.
+ *
+ * It is PURE: no database, no environment. It takes a query and returns the
+ * SQL text and the values. That is what makes it unit-testable, and it is
+ * what keeps a user-supplied string from ever reaching the database as
+ * anything other than a bound value.
+ *
+ * The column list is a WHITELIST. A sort or filter on anything not in it is
+ * rejected, which is both an injection guard and a guarantee that every
+ * sortable column has an index behind it.
+ */
+
+export const LEDGER_COLUMNS = [
+  "id",
+  "sku",
+  "storeName",
+  "status",
+  "modelVerdict",
+  "modelConfidence",
+  "expectedValueCents",
+  "modelObservedCents",
+  "rewardCents",
+  "claimedByEmail",
+  "requesterEmail",
+  "createdAt",
+  "paidAt",
+] as const;
+
+export type LedgerColumn = (typeof LEDGER_COLUMNS)[number];
+
+const COLUMN_TO_SQL: Record<LedgerColumn, string> = {
+  id: "b.id",
+  sku: "b.sku",
+  storeName: "b.store_name",
+  status: "b.status",
+  modelVerdict: "b.model_verdict",
+  modelConfidence: "b.model_confidence",
+  expectedValueCents: "b.expected_value_cents",
+  modelObservedCents: "b.model_observed_cents",
+  rewardCents: "b.reward_cents",
+  claimedByEmail: "b.claimed_by_email",
+  requesterEmail: "b.requester_email",
+  createdAt: "b.created_at",
+  paidAt: "p.paid_at",
+};
+
+export type FilterOp = "eq" | "neq" | "contains" | "gte" | "lte" | "in";
+
+const FILTER_OPS: ReadonlySet<FilterOp> = new Set([
+  "eq",
+  "neq",
+  "contains",
+  "gte",
+  "lte",
+  "in",
+]);
+
+export interface LedgerFilter {
+  column: LedgerColumn;
+  op: FilterOp;
+  /** A string for contains, a number for the numeric comparisons, a list for `in`. */
+  value: string | number | Array<string | number>;
+}
+
+export interface LedgerQuery {
+  startRow: number;
+  endRow: number;
+  sort: { column: LedgerColumn; direction: "asc" | "desc" } | null;
+  filters: LedgerFilter[];
+  /** A free-text search across the identifier fields. */
+  search: string | null;
+}
+
+export const DEFAULT_LEDGER_QUERY: LedgerQuery = {
+  startRow: 0,
+  endRow: 50,
+  sort: { column: "createdAt", direction: "desc" },
+  filters: [],
+  search: null,
+};
+
+export function isLedgerColumn(value: string): value is LedgerColumn {
+  return (LEDGER_COLUMNS as readonly string[]).includes(value);
+}
+
+const NUMERIC_COLUMNS: ReadonlySet<LedgerColumn> = new Set([
+  "modelConfidence",
+  "expectedValueCents",
+  "modelObservedCents",
+  "rewardCents",
+]);
+
+function whereClause(
+  query: LedgerQuery,
+): { text: string; values: unknown[] } {
+  const parts: string[] = [];
+  const values: unknown[] = [];
+
+  for (const filter of query.filters) {
+    if (!isLedgerColumn(filter.column)) continue;
+    const column = COLUMN_TO_SQL[filter.column];
+
+    switch (filter.op) {
+      case "eq": {
+        values.push(filter.value);
+        parts.push(`${column} = $${values.length}`);
+        break;
+      }
+      case "neq": {
+        values.push(filter.value);
+        parts.push(`${column} <> $${values.length}`);
+        break;
+      }
+      case "contains": {
+        values.push(`%${String(filter.value)}%`);
+        parts.push(`${column} ILIKE $${values.length}`);
+        break;
+      }
+      case "gte": {
+        values.push(Number(filter.value));
+        parts.push(`${column} >= $${values.length}`);
+        break;
+      }
+      case "lte": {
+        values.push(Number(filter.value));
+        parts.push(`${column} <= $${values.length}`);
+        break;
+      }
+      case "in": {
+        const list = Array.isArray(filter.value) ? filter.value : [filter.value];
+        if (list.length === 0) break;
+        values.push(list);
+        parts.push(`${column} = ANY($${values.length})`);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  if (query.search && query.search.trim() !== "") {
+    values.push(`%${query.search.trim()}%`);
+    const index = values.length;
+    parts.push(`(b.sku ILIKE $${index} OR b.id::text ILIKE $${index} OR b.store_name ILIKE $${index})`);
+  }
+
+  return { text: parts.length ? `WHERE ${parts.join(" AND ")}` : "", values };
+}
+
+export interface BuiltLedgerQuery {
+  rowsText: string;
+  rowsValues: unknown[];
+  countText: string;
+  countValues: unknown[];
+  limit: number;
+  offset: number;
+}
+
+export function buildLedgerQuery(query: LedgerQuery): BuiltLedgerQuery {
+  const limit = Math.max(1, Math.min(500, query.endRow - query.startRow));
+  const offset = Math.max(0, query.startRow);
+
+  const where = whereClause(query);
+
+  const sortColumn = query.sort && isLedgerColumn(query.sort.column)
+    ? COLUMN_TO_SQL[query.sort.column]
+    : COLUMN_TO_SQL.createdAt;
+  const direction = query.sort?.direction === "asc" ? "ASC" : "DESC";
+
+  // The tiebreaker on id keeps the page stable when two rows share a sort
+  // value, which is what stops a row appearing on two pages at once.
+  const rowsText = `
+    SELECT
+      b.id, b.sku, b.store_name, b.status, b.model_verdict, b.model_confidence,
+      b.expected_value_cents, b.model_observed_cents, b.reward_cents,
+      b.claimed_by_email, b.requester_email, b.created_at, p.paid_at,
+      b.evidence_path, b.evidence_thumb_path, b.mock_scenario,
+      p.status AS payout_status, p.sender_batch_id, p.paid_at AS payout_paid_at
+    FROM bounties b
+    LEFT JOIN payouts p ON p.bounty_id = b.id
+    ${where.text}
+    ORDER BY ${sortColumn} ${direction}, b.id ${direction}
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  const countText = `
+    SELECT COUNT(*)::int AS count
+    FROM bounties b
+    LEFT JOIN payouts p ON p.bounty_id = b.id
+    ${where.text}
+  `;
+
+  return {
+    rowsText,
+    rowsValues: where.values,
+    countText,
+    countValues: where.values,
+    limit,
+    offset,
+  };
+}
+
+/**
+ * Parse a query out of request parameters.
+ *
+ * Every value is validated against the whitelist before it becomes part of a
+ * query. An unknown column is dropped, not passed through.
+ */
+export function parseLedgerQuery(
+  input: Record<string, string | undefined>,
+): LedgerQuery {
+  const query: LedgerQuery = { ...DEFAULT_LEDGER_QUERY, filters: [] };
+
+  const start = Number(input.startRow);
+  const end = Number(input.endRow);
+  if (Number.isFinite(start) && start >= 0) query.startRow = start;
+  if (Number.isFinite(end) && end > query.startRow) query.endRow = end;
+
+  const sortColumn = input.sort;
+  if (sortColumn && isLedgerColumn(sortColumn)) {
+    query.sort = {
+      column: sortColumn,
+      direction: input.direction === "asc" ? "asc" : "desc",
+    };
+  }
+
+  const column = input.filterColumn;
+  if (column && isLedgerColumn(column)) {
+    const op = input.filterOp as FilterOp | undefined;
+    const raw = input.filterValue;
+    if (raw !== undefined && op && FILTER_OPS.has(op)) {
+      const value = coerceFilterValue(column, op, raw);
+      if (value !== null) {
+        query.filters.push({ column, op, value });
+      }
+    }
+  }
+
+  // The grid sends a JSON array, so a query can combine a status with an
+  // amount — "paid over five dollars" is two conditions, not one. Every entry
+  // is validated against the same whitelist as a single filter.
+  const rawFilters = input.filters;
+  if (rawFilters) {
+    try {
+      const parsed: unknown = JSON.parse(rawFilters);
+      if (Array.isArray(parsed)) {
+        for (const entry of parsed) {
+          if (!entry || typeof entry !== "object") continue;
+          const candidate = entry as { column?: unknown; op?: unknown; value?: unknown };
+          if (typeof candidate.column !== "string" || !isLedgerColumn(candidate.column)) continue;
+          if (typeof candidate.op !== "string" || !FILTER_OPS.has(candidate.op as FilterOp)) continue;
+          const value = coerceFilterValue(
+            candidate.column,
+            candidate.op as FilterOp,
+            candidate.value,
+          );
+          if (value === null) continue;
+          query.filters.push({ column: candidate.column, op: candidate.op as FilterOp, value });
+        }
+      }
+    } catch {
+      // A malformed filter payload is ignored rather than fatal. The grid
+      // simply shows more rows than were asked for, and never the wrong ones.
+    }
+  }
+
+  if (input.search && input.search.trim() !== "") {
+    query.search = input.search;
+  }
+
+  return query;
+}
+
+/**
+ * Coerce and validate a filter value.
+ *
+ * Returns null when the value cannot be used. A rejected filter is DROPPED,
+ * never guessed at: a filter that silently means something else is worse than
+ * no filter, because the operator would believe a narrower result than they
+ * are looking at.
+ */
+export function coerceFilterValue(
+  column: LedgerColumn,
+  op: FilterOp,
+  value: unknown,
+): string | number | Array<string | number> | null {
+  if (op === "in") {
+    const list = Array.isArray(value) ? value : [value];
+    const cleaned = list
+      .filter((item) => item !== null && item !== undefined)
+      .map((item) => (NUMERIC_COLUMNS.has(column) ? Number(item) : String(item)))
+      .filter((item) =>
+        typeof item === "number" ? Number.isFinite(item) : String(item).length > 0,
+      );
+    return cleaned.length > 0 ? (cleaned as Array<string | number>) : null;
+  }
+
+  if (NUMERIC_COLUMNS.has(column)) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+}
+
+/**
+ * The AG Grid filter model, in the shape the grid itself produces.
+ *
+ * The grid's own column filters and the natural-language layer both produce
+ * this shape, and the server turns it into SQL through exactly one path. That
+ * is what makes "show failed payouts" and clicking a column filter mean
+ * precisely the same thing.
+ */
+export interface GridFilterModel {
+  [columnId: string]: {
+    filterType?: string;
+    type?: string;
+    filter?: string | number;
+    filterTo?: number;
+    values?: string[];
+  };
+}
+
+/** Turn a grid filter model into the whitelisted filters the server wants. */
+export function gridFilterToLedgerFilters(
+  model: GridFilterModel | null | undefined,
+): LedgerFilter[] {
+  if (!model) return [];
+
+  const filters: LedgerFilter[] = [];
+
+  for (const [column, spec] of Object.entries(model)) {
+    if (!isLedgerColumn(column)) continue;
+
+    // A set filter carries a list of allowed values.
+    if (spec.filterType === "set") {
+      const values = spec.values ?? [];
+      if (values.length === 0) continue;
+      const cleaned = coerceFilterValue(column, "in", values);
+      if (cleaned === null) continue;
+      filters.push({ column, op: "in", value: cleaned });
+      continue;
+    }
+
+    if (spec.filterType === "number") {
+      const number = Number(spec.filter);
+      if (!Number.isFinite(number)) continue;
+      const type = spec.type ?? "equals";
+      if (type === "inRange") {
+        filters.push({ column, op: "gte", value: number });
+        const to = Number(spec.filterTo);
+        if (Number.isFinite(to)) filters.push({ column, op: "lte", value: to });
+      } else if (type === "greaterThan" || type === "greaterThanOrEqual") {
+        filters.push({ column, op: "gte", value: number });
+      } else if (type === "lessThan" || type === "lessThanOrEqual") {
+        filters.push({ column, op: "lte", value: number });
+      } else if (type === "notEqual") {
+        filters.push({ column, op: "neq", value: number });
+      } else {
+        filters.push({ column, op: "eq", value: number });
+      }
+      continue;
+    }
+
+    // A text filter.
+    const raw = spec.filter;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const type = spec.type ?? "contains";
+    if (type === "equals") {
+      filters.push({ column, op: "eq", value: String(raw) });
+    } else if (type === "notEqual") {
+      filters.push({ column, op: "neq", value: String(raw) });
+    } else if (type === "startsWith") {
+      filters.push({ column, op: "contains", value: String(raw) });
+    } else {
+      filters.push({ column, op: "contains", value: String(raw) });
+    }
+  }
+
+  return filters;
+}

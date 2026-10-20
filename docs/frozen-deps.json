@@ -1,0 +1,40 @@
+{
+  "note": "The phase-2 freeze. A dependency or a top-level src/ directory added after this file was written requires a new entry in docs/DECISIONS.md. Regenerate with: node scripts/freeze-deps.mjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.10",
+    "ag-grid-community": "^34.3.1",
+    "ag-grid-react": "^34.3.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "heic2any": "^0.0.4",
+    "lucide-react": "^0.469.0",
+    "next": "15.5.28",
+    "postgres": "^3.4.5",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.49.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.28",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "vitest": "^3.0.5"
+  },
+  "srcDirs": [
+    "app",
+    "components",
+    "domain",
+    "ops",
+    "server"
+  ]
+}
