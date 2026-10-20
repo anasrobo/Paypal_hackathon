@@ -13,6 +13,7 @@
  * container instead, and both paths run the same migrations.
  */
 
+import { rmSync } from "node:fs";
 import EmbeddedPostgres from "embedded-postgres";
 import { DB_OPTIONS } from "../../src/server/db/client";
 import { runMigrations } from "../../src/server/db/migrate";
@@ -23,6 +24,33 @@ const USER = "postgres";
 const PASSWORD = "postgres";
 
 let pg: EmbeddedPostgres | undefined;
+
+/**
+ * The data directory for this run.
+ *
+ * A previous run may have left the directory behind — especially if the
+ * server had to be force-killed — and initdb refuses a non-empty directory.
+ * So the directory is removed first. On Windows a file can still be locked
+ * for a moment after the process dies, so if the removal fails the run falls
+ * back to a fresh directory instead of failing the whole suite.
+ */
+function freshDataDir(): string {
+  const base = "./.tmp/pgdata";
+  try {
+    rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+    return base;
+  } catch {
+    const fallback = `./.tmp/pgdata-${Date.now()}`;
+    // Best effort: the stale directory is garbage, but it must never stop a
+    // test run.
+    try {
+      rmSync(base, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 });
+    } catch {
+      // ignored
+    }
+    return fallback;
+  }
+}
 
 export async function setup(): Promise<void> {
   // SAFETY: the integration tests TRUNCATE tables. They must NEVER run
@@ -41,8 +69,10 @@ export async function setup(): Promise<void> {
     return;
   }
 
+  const dataDir = freshDataDir();
+
   pg = new EmbeddedPostgres({
-    databaseDir: "./.tmp/pgdata",
+    databaseDir: dataDir,
     user: USER,
     password: PASSWORD,
     port: PORT,
@@ -76,7 +106,35 @@ export async function setup(): Promise<void> {
 
 export async function teardown(): Promise<void> {
   if (pg) {
-    await pg.stop().catch(() => {});
+    const instance = pg;
     pg = undefined;
+    // On Windows the embedded server sometimes does not acknowledge the stop
+    // in time. A leftover postgres process holds the shared-memory block, and
+    // the NEXT run then fails with "pre-existing shared memory block is still
+    // in use". So the stop is bounded, and then it is forced.
+    const stopped = await Promise.race([
+      instance.stop().then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
+    ]);
+    if (!stopped) {
+      console.warn("[setup] the embedded postgres did not stop in time — forcing it");
+      await forceStopPostgres();
+    }
+  }
+}
+
+/** Kill every postgres process this machine is running for the test suite. */
+async function forceStopPostgres(): Promise<void> {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const run = promisify(execFile);
+  try {
+    if (process.platform === "win32") {
+      await run("taskkill", ["/F", "/IM", "postgres.exe"]);
+    } else {
+      await run("pkill", ["-f", "embedded-postgres"]);
+    }
+  } catch {
+    // Nothing to kill, or the kill failed. The next run cleans up anyway.
   }
 }

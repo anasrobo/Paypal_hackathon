@@ -349,3 +349,80 @@ pooler cached.
 
 **Revisit if.** The app ever needs a session-scoped setting that the
 transaction pooler cannot carry.
+
+---
+
+## D-015 — HEIC photos are decoded in the browser, on demand
+
+**Date:** 2026-10-20
+**Status:** FROZEN
+
+**Decision.** The capture screen adds `heic2any` as a runtime dependency and
+imports it **dynamically**, only on the path where the chosen file is HEIC.
+
+**Rationale.** An iPhone hands over a HEIC file that a desktop browser cannot
+paint onto a canvas, so the downscale would fail and the demo person would be
+stuck at the worst possible moment. A dynamic import means the decoder is
+never in the critical path of an ordinary JPEG, and never loaded at all for a
+judge on a laptop.
+
+**Rejected alternative.** Asking iOS to convert HEIC to JPEG in Settings — it
+works, but it is a setup step for a stranger, and the failure mode is a dead
+demo. Also rejected: transcoding on the server, which would put the image
+bytes back through a function and undo the direct-to-Storage upload.
+
+**Revisit if.** The demo moves to a browser that decodes HEIC natively.
+
+---
+
+## D-016 — The longitude columns are aliased, not renamed
+
+**Date:** 2026-10-20
+**Status:** FROZEN
+
+**Decision.** The `bounties` table keeps the physical columns `store_lon` and
+`capture_lon` from the data model. The query builder ALIASES them to
+`store_lng` and `capture_lng` in every read, so the application sees one
+spelling.
+
+**Rationale.** The camel-case transform turns `store_lon` into `storeLon`, and
+the entire application — the domain, the gate, the capture screen — speaks
+`lng`. Without the alias, every read of `storeLng` was `undefined`, the
+geofence rule failed for EVERY bounty, and no payout could ever be made. The
+bug reached the database because none of the eight invariants asserted that a
+PERFECT submission is accepted. The alias is a one-line fix at the boundary;
+renaming the columns would have touched the schema, the migrations and the
+seed for no benefit.
+
+**Rejected alternative.** Renaming the columns in a new migration — more
+churn, and it would have made the data model diverge from the plan for no
+functional gain.
+
+**Revisit if.** The data model is ever revised. Until then the alias is
+load-bearing and is documented in `src/server/db/queries.ts`.
+
+---
+
+## D-017 — `/ops` is a static shell, and that is a budget decision
+
+**Date:** 2026-10-20
+**Status:** FROZEN
+
+**Decision.** The ops page renders a static shell. All of its data comes from
+`/api/ops/ledger` at runtime, in the browser.
+
+**Rationale.** Vercel Hobby allows twelve serverless functions, and every
+dynamic page is one. The grid needs no server-rendered data, so making the
+page static removes a function from the budget entirely. The build now
+produces **nine** functions: three dynamic pages, five API routes, and this
+one, which is not a function at all.
+
+**Rejected alternative.** Rendering the grid shell server-side and fetching
+only the rows client-side — that would have been a tenth function for no
+benefit. Also rejected: merging two API routes to save a function, because
+the routes have genuinely different trust boundaries and merging them would
+have made the webhook handler harder to audit.
+
+**Revisit if.** The build ever exceeds nine functions. The ladder is, in
+order: fold `/api/uploads/sign` into `/api/claim`, then serve the ledger
+count from a cached edge response.

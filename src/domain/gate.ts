@@ -31,7 +31,7 @@ export const GATE_DEFAULTS = {
   allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"] as readonly string[],
 } as const;
 
-const LABELS: Record<RuleId, string> = {
+export const GATE_RULE_LABELS: Record<RuleId, string> = {
   model_verdict_match: "The model read a matching price",
   model_confidence_min: "Model confidence is high enough",
   freshness_30m: "Photo was taken in the last 30 minutes",
@@ -39,6 +39,8 @@ const LABELS: Record<RuleId, string> = {
   value_tolerance_10pct: "The price is within tolerance",
   media_valid: "The photo is a valid image under 10 MB",
 };
+
+const LABELS = GATE_RULE_LABELS;
 
 function modelVerdictRule(model: ModelOutput | null): RuleResult {
   const actual = model?.verdict ?? "no model output";

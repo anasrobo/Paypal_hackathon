@@ -17,7 +17,9 @@ import { NextResponse } from "next/server";
 import { statusOf, toErrorBody } from "@/domain/errors";
 import { db } from "@/server/db/client";
 import { buildLedgerQuery, parseLedgerQuery } from "@/ops/ledger-query";
+import { getEnv } from "@/server/env";
 import { reconcileStuckPayouts } from "@/server/services/reconcile";
+import { supabaseStorage } from "@/server/storage";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -43,6 +45,21 @@ export async function GET(request: Request) {
 
     const count = Array.isArray(countRows) && countRows.length ? Number(countRows[0].count) : 0;
 
+    // Signed thumbnail URLs. Supabase signs locally with the service key, so
+    // this costs no network round trip — one page of rows costs nothing extra.
+    const signedThumbs = new Map<string, string>();
+    try {
+      const candidates = rows
+        .map((row: Record<string, unknown>) => row.evidenceThumbPath)
+        .filter((path): path is string => typeof path === "string" && path.length > 0);
+      for (const path of candidates) {
+        signedThumbs.set(path, await supabaseStorage.signedUrl(path, 120));
+      }
+    } catch {
+      // Storage is not configured. The ledger still renders — only the
+      // thumbnails are missing.
+    }
+
     return NextResponse.json({
       success: true,
       rows: rows.map((row: Record<string, unknown>) => ({
@@ -51,7 +68,8 @@ export async function GET(request: Request) {
         storeName: row.storeName,
         status: row.status,
         modelVerdict: row.modelVerdict,
-        modelConfidence: row.modelConfidence,
+        // Postgres numeric arrives as a string; the grid sorts it as a number.
+        modelConfidence: row.modelConfidence === null ? null : Number(row.modelConfidence),
         expectedValueCents: row.expectedValueCents,
         modelObservedCents: row.modelObservedCents,
         rewardCents: row.rewardCents,
@@ -59,7 +77,10 @@ export async function GET(request: Request) {
         requesterEmail: row.requesterEmail,
         createdAt: row.createdAt,
         paidAt: row.paidAt,
-        evidenceThumbPath: row.evidenceThumbPath,
+        evidenceThumbUrl:
+          typeof row.evidenceThumbPath === "string"
+            ? (signedThumbs.get(row.evidenceThumbPath) ?? null)
+            : null,
         mockScenario: row.mockScenario,
         payoutStatus: row.payoutStatus,
         senderBatchId: row.senderBatchId,
@@ -67,6 +88,10 @@ export async function GET(request: Request) {
       })),
       total: count,
       lastRow: built.offset + built.limit >= count ? count : undefined,
+      meta: {
+        vision: getEnv().VISION_PROVIDER,
+        paypal: getEnv().PAYPAL_PROVIDER,
+      },
     });
   } catch (error) {
     return NextResponse.json(toErrorBody(error), { status: statusOf(error) });

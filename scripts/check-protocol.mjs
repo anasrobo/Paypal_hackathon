@@ -128,7 +128,11 @@ if (existsSync(frozenPath) && state) {
     const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
     const now = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     for (const dep of Object.keys(now)) {
-      if (!(dep in (frozen.dependencies ?? {}))) {
+      // A dependency is frozen if it was in EITHER list. A build tool is
+      // just as much a part of the architecture as a runtime library.
+      const known =
+        dep in (frozen.dependencies ?? {}) || dep in (frozen.devDependencies ?? {});
+      if (!known) {
         failures.push(
           `dependency "${dep}" was added after the phase-2 freeze — add a DECISIONS entry first`,
         );

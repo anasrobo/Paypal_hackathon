@@ -1,10 +1,10 @@
 <!-- GROUNDTRUTH:BUILD_STATE:BEGIN -->
-phase: 3
+phase: 4
 status: IN_PROGRESS
-task: T3-06
-last_test: 83 passed / 0 failed, 4 migrations applied to real Supabase
+task: T4-06
+last_test: 103 passed / 0 failed, rehearsal 12/12, build green, 9 serverless functions
 attempts: 0
-commit: 8616390bb4b274593abcdb4b71f74976b4e46295
+commit: f4ef8c1
 <!-- GROUNDTRUTH:BUILD_STATE:END -->
 
 # Build state
@@ -33,11 +33,11 @@ commit: 8616390bb4b274593abcdb4b71f74976b4e46295
 | P0 Safe bootstrap | COMPLETE | — | guards green, build green | branch `feat/groundtruth-bootstrap`, baseline `e73f4e5` |
 | P1 Pure domain | COMPLETE | — | 63 unit tests passed | state machine, gate, money, geo |
 | P2 Server core | COMPLETE | — | 83 tests passed, 4 migrations applied | env, db, tokens, storage, vision, paypal, services |
-| P3 Route handlers | IN_PROGRESS | — | typecheck clean | health, webhook, claim, uploads/sign, cron, ops/ledger written |
-| P4 Screens + AG Grid | NOT_STARTED | — | — | |
-| P5 Seed + E2E | NOT_STARTED | — | — | |
-| P6 Deploy | NOT_STARTED | — | — | blocked on Supabase project |
-| P7 Submission | NOT_STARTED | — | — | |
+| P3 Route handlers | COMPLETE | — | rehearsal 12/12 | health, webhook, claim, uploads/sign, cron, ops/ledger written |
+| P4 Screens + AG Grid | IN_PROGRESS | — | build green, 9 functions | console, capture, evidence view, ops ledger with the NL query layer |
+| P5 Seed + E2E | IN_PROGRESS | — | seed green, e2e written | `db/seed.ts` seeds 35 rows; Playwright specs written, not yet run |
+| P6 Deploy | NOT_STARTED | — | — | Supabase is live and isolated; Vercel project not yet created |
+| P7 Submission | IN_PROGRESS | — | — | README, INVARIANTS written; DEMO.md and the Devpost entry outstanding |
 
 ## Blockers
 
@@ -102,3 +102,17 @@ Recorded once, so nobody re-derives them.
   interfere. If the token rotates, re-point the remote and push again.
   The MCP remains the path for pull-request and merge operations, where
   `expectedHeadSha` matters.
+- **The build produces NINE serverless functions**, which is inside the Vercel
+  Hobby cap of twelve. `/ops` is a STATIC shell — the grid fetches its rows
+  from `/api/ops/ledger` at runtime — so it costs no function at all. The
+  other eight are the three dynamic pages (`/`, `/bounty/[id]`,
+  `/claim/[token]`) and the five API routes. Do not add a sixth route
+  without a documented consolidation, or the deploy will fail.
+- **The `bounties` table stores `store_lon` and `capture_lon`, but the whole
+  application speaks `lng`.** The query builder ALIASES them
+  (`store_lon AS store_lng`), because the camel-case transform would
+  otherwise hand back `storeLon` and every read of `storeLng` would be
+  `undefined` — which silently failed the geofence rule for EVERY bounty.
+  That bug shipped once and was caught by the seed, not by the tests: none
+  of the eight invariants asserted that a PERFECT submission is accepted.
+  The happy path is now asserted explicitly, and it must stay asserted.

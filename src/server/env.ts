@@ -28,6 +28,22 @@ const PLACEHOLDER_MARKERS = [
 export type PayPalProviderName = "mock" | "sandbox";
 export type VisionProviderName = "mock" | "openai";
 
+/**
+ * The development-only defaults.
+ *
+ * Every one of these is an OBVIOUS placeholder. They exist so the app boots
+ * with no credentials at all in development, and the production guard in
+ * `parse` refuses to start if any of them is still in place.
+ */
+export const PLACEHOLDERS = {
+  tokenSecret: "change-me-32-chars-minimum-placeholder",
+  cronSecret: "change-me-cron-secret-placeholder",
+  paypalMockWebhookSecret: "mock-webhook-secret-placeholder",
+} as const;
+
+/** An optional string setting. Shared so the schema below stays readable. */
+const optionalText = z.string().min(1).optional();
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -46,27 +62,27 @@ const schema = z.object({
     .regex(/^[a-z_][a-z0-9_]*$/i, "APP_DB_SCHEMA must be a plain identifier")
     .default("public"),
 
-  SUPABASE_URL: z.string().min(1).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SUPABASE_URL: optionalText,
+  SUPABASE_SERVICE_ROLE_KEY: optionalText,
   SUPABASE_STORAGE_BUCKET: z.string().min(1).default("evidence"),
 
   PAYPAL_PROVIDER: z.enum(["mock", "sandbox"]).default("mock"),
   PAYPAL_SANDBOX_BASE_URL: z.string().url().default("https://api-m.sandbox.paypal.com"),
-  PAYPAL_CLIENT_ID: z.string().optional(),
-  PAYPAL_CLIENT_SECRET: z.string().optional(),
-  PAYPAL_WEBHOOK_ID: z.string().optional(),
-  PAYPAL_WEBHOOK_SECRET: z.string().optional(),
-  PAYPAL_MOCK_WEBHOOK_SECRET: z.string().min(1).default("mock-webhook-secret-placeholder"),
+  PAYPAL_CLIENT_ID: optionalText,
+  PAYPAL_CLIENT_SECRET: optionalText,
+  PAYPAL_WEBHOOK_ID: optionalText,
+  PAYPAL_WEBHOOK_SECRET: optionalText,
+  PAYPAL_MOCK_WEBHOOK_SECRET: z.string().min(1).default(PLACEHOLDERS.paypalMockWebhookSecret),
   PAYPAL_MOCK_FAIL_EMAIL: z.string().email().default("payout-fail@demo.test"),
 
   VISION_PROVIDER: z.enum(["mock", "openai"]).default("mock"),
-  VISION_API_KEY: z.string().optional(),
-  VISION_MODEL: z.string().optional(),
+  VISION_API_KEY: optionalText,
+  VISION_MODEL: optionalText,
   MOCK_VISION_LATENCY_MS: z.coerce.number().int().min(0).max(10_000).default(150),
   MOCK_PAYPAL_LATENCY_MS: z.coerce.number().int().min(0).max(10_000).default(250),
 
-  TOKEN_SECRET: z.string().min(1).default("change-me-32-chars-minimum-placeholder"),
-  CRON_SECRET: z.string().min(1).default("change-me-cron-secret-placeholder"),
+  TOKEN_SECRET: z.string().min(1).default(PLACEHOLDERS.tokenSecret),
+  CRON_SECRET: z.string().min(1).default(PLACEHOLDERS.cronSecret),
 
   APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_APP_NAME: z.string().default("GroundTruth"),

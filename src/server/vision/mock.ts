@@ -14,11 +14,13 @@ import { getEnv } from "../env";
 import type { MockScenario, VisionProvider, VisionRequest } from "./provider";
 
 /**
- * The out-of-tolerance price. Five thirds of the expected price: on $6.00
- * that is $10.00, which is 66 % away and unambiguously outside a 10 %
- * tolerance.
+ * The out-of-tolerance price.
+ *
+ * 1.665 of the expected price. On $6.00 that is $9.99 — 66 % away, which is
+ * unambiguously outside a 10 % tolerance, and a number a judge can read off
+ * the screen and check by eye.
  */
-const MISMATCH_FACTOR = 5 / 3;
+const MISMATCH_FACTOR = 1.665;
 
 function delay(ms: number): Promise<void> {
   if (ms <= 0) return Promise.resolve();
@@ -31,7 +33,7 @@ function build(scenario: MockScenario, expectedValueCents: number): Omit<ModelOu
       return {
         verdict: "mismatch",
         confidence: 0.41,
-        observedValueCents: Math.round((expectedValueCents * MISMATCH_FACTOR) / 100) * 100,
+        observedValueCents: Math.round(expectedValueCents * MISMATCH_FACTOR),
         raw: {
           note: "A price tag was found but the value did not match the request.",
           provider: "mock",

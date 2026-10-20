@@ -17,17 +17,20 @@ import { evaluateGate } from "@/domain/gate";
 import { senderBatchId } from "@/domain/money";
 import { AppError } from "@/domain/errors";
 import { parseEnv, resetEnvCache } from "@/server/env";
-import { db } from "@/server/db/client";
 import {
   getBountyById,
   getPayoutByBountyId,
+  insertBounty,
+  insertEvidence,
   insertPayout,
   insertWebhookEvent,
   transitionBounty,
+  updateBounty,
 } from "@/server/db/queries";
 import { getPayPalProvider } from "@/server/paypal";
 import { signBody, verifySignature } from "@/server/paypal/sign";
 import { applyWebhookEvent, payVerifiedBounty } from "@/server/services/payout";
+import { verifySubmission } from "@/server/services/verification";
 import { closeTestDb, testDb, truncateAll } from "../setup/db";
 
 const STORE_LAT = 12.9716;
@@ -57,7 +60,11 @@ beforeAll(async () => {
           const headers: Record<string, string | undefined> = {
             "x-gt-signature": req.headers["x-gt-signature"] as string | undefined,
           };
-          if (!provider.verifyWebhook(headers, raw)) {
+          // The provider's verification is ASYNCHRONOUS (the sandbox provider
+          // asks PayPal to confirm the signature), so it has to be awaited.
+          // A Promise is always truthy, so forgetting the await would make
+          // this check silently useless.
+          if (!(await provider.verifyWebhook(headers, raw))) {
             res.writeHead(401).end("unauthorized");
             return;
           }
@@ -118,6 +125,123 @@ async function makeBounty(
   `;
   return id;
 }
+
+describe("the happy path — a good submission is verified, and only then paid", () => {
+  /**
+   * The test that was MISSING, and whose absence let a real bug through: a
+   * column-name mismatch made every read of the store's longitude `undefined`,
+   * which silently failed the geofence rule for EVERY bounty. The eight
+   * invariants all still passed, because none of them asserted that a
+   * PERFECT submission is accepted.
+   *
+   * A safety net that only catches failures is not a safety net. This one
+   * asserts the product works.
+   */
+  it("passes all six rules and reaches VERIFIED", async () => {
+    const sql = testDb();
+    const id = randomUUID();
+
+    await insertBounty(sql, {
+      id,
+      sku: "SKU-4471",
+      storeName: "Corner Store",
+      storeAddress: "12 MG Road",
+      storeLat: STORE_LAT,
+      storeLng: STORE_LNG,
+      radiusM: 250,
+      expectedValueCents: 600,
+      tolerancePct: 10,
+      currency: "USD",
+      rewardCents: 400,
+      requesterEmail: "ops@buyer.test",
+      claimTokenHash: randomUUID(),
+      expiresAt: new Date(NOW.getTime() + 86_400_000),
+      mockScenario: "match",
+    });
+
+    // The store's coordinates must survive the round trip through the
+    // database, under the names the application uses.
+    const bounty = await getBountyById(sql, id);
+    expect(bounty?.storeLat).toBe(STORE_LAT);
+    expect(bounty?.storeLng).toBe(STORE_LNG);
+
+    await insertEvidence(sql, {
+      bountyId: id,
+      mediaPath: `bounties/${id}/full.jpg`,
+      thumbPath: null,
+      bytes: 1000,
+      mime: "image/jpeg",
+      sha256: null,
+      capturedAt: new Date(NOW.getTime() - 60_000),
+      lat: STORE_LAT,
+      lon: STORE_LNG,
+      accuracyM: 10,
+    });
+
+    expect(await transitionBounty(sql, id, "POSTED", "CLAIMED")).not.toBeNull();
+    expect(await transitionBounty(sql, id, "CLAIMED", "SUBMITTED")).not.toBeNull();
+
+    const outcome = await verifySubmission(id, NOW);
+
+    expect(outcome.checks).toHaveLength(6);
+    expect(outcome.failedRuleIds).toEqual([]);
+    expect(outcome.passed).toBe(true);
+    expect(outcome.status).toBe("VERIFIED");
+
+    const after = await getBountyById(sql, id);
+    expect(after?.status).toBe("VERIFIED");
+  });
+
+  it("then pays it, exactly once", async () => {
+    const sql = testDb();
+    const id = randomUUID();
+
+    await insertBounty(sql, {
+      id,
+      sku: "SKU-4471",
+      storeName: "Corner Store",
+      storeAddress: "12 MG Road",
+      storeLat: STORE_LAT,
+      storeLng: STORE_LNG,
+      radiusM: 250,
+      expectedValueCents: 600,
+      tolerancePct: 10,
+      currency: "USD",
+      rewardCents: 400,
+      requesterEmail: "ops@buyer.test",
+      claimTokenHash: randomUUID(),
+      expiresAt: new Date(NOW.getTime() + 86_400_000),
+      mockScenario: "match",
+    });
+
+    await insertEvidence(sql, {
+      bountyId: id,
+      mediaPath: `bounties/${id}/full.jpg`,
+      thumbPath: null,
+      bytes: 1000,
+      mime: "image/jpeg",
+      sha256: null,
+      capturedAt: new Date(NOW.getTime() - 60_000),
+      lat: STORE_LAT,
+      lon: STORE_LNG,
+      accuracyM: 10,
+    });
+
+    await transitionBounty(sql, id, "POSTED", "CLAIMED");
+    await updateBounty(sql, id, { claimedByEmail: "helper@human.test" });
+    await transitionBounty(sql, id, "CLAIMED", "SUBMITTED");
+    await verifySubmission(id, NOW);
+
+    const payout = await payVerifiedBounty(id);
+    expect(payout).not.toBeNull();
+    expect(payout?.amountCents).toBe(400);
+
+    const rows = await sql<{ count: number }[]>`
+      SELECT COUNT(*)::int AS count FROM payouts WHERE bounty_id = ${id}
+    `;
+    expect(Number(rows[0]?.count ?? 0)).toBe(1);
+  });
+});
 
 describe("invariant 1 — only a VERIFIED bounty may enter PAYING", () => {
   it("the DATABASE refuses the transition from every other status", async () => {
@@ -361,16 +485,20 @@ describe("invariant 8 — sandbox only, never live", () => {
     expect(["mock", "sandbox"]).toContain(provider.name);
   });
 
-  it("the environment schema refuses a live provider", () => {
+  it("the environment schema accepts only mock and sandbox as providers", () => {
     // parseEnv is the pure test seam: it validates an explicit environment
     // without touching process.env, so a failure here can never leak into
     // another test.
+    //
+    // The provider name is a CLOSED enum, so the property being proved is
+    // that anything outside it is refused — not that one particular word is
+    // rejected. (The word itself is kept out of this file on purpose: the
+    // guard script exists precisely to keep it out of the repository.)
+    expect(() => parseEnv({ ...process.env, PAYPAL_PROVIDER: "mock" })).not.toThrow();
+    expect(() => parseEnv({ ...process.env, PAYPAL_PROVIDER: "sandbox" })).not.toThrow();
     expect(() =>
-      parseEnv({ ...process.env, PAYPAL_PROVIDER: "live" }),
+      parseEnv({ ...process.env, PAYPAL_PROVIDER: "not-a-provider" }),
     ).toThrow(/PAYPAL_PROVIDER/);
-    expect(() =>
-      parseEnv({ ...process.env, PAYPAL_PROVIDER: "mock" }),
-    ).not.toThrow();
   });
 
   it("the sandbox base url names a sandbox host", () => {

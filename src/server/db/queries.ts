@@ -24,12 +24,23 @@ import type {
   VerificationCheckRow,
 } from "./types";
 
+/**
+ * The columns of a bounty, as the application sees them.
+ *
+ * The `_lon` columns are ALIASED to `_lng`. The physical column names come
+ * from the data model, but the whole application — the domain, the gate, the
+ * capture screen — speaks `lng`. Without the alias the camel-case transform
+ * would hand back `storeLon` and every read of `storeLng` would be
+ * `undefined`, which silently fails the geofence rule for every bounty.
+ *
+ * This alias is load-bearing. Do not remove it without renaming the columns.
+ */
 const BOUNTY_COLUMNS = `
-  id, status, sku, store_name, store_address, store_lat, store_lon, radius_m,
+  id, status, sku, store_name, store_address, store_lat, store_lon AS store_lng, radius_m,
   expected_value_cents, tolerance_pct, currency, reward_cents, requester_email,
   claim_token_hash, claimed_by_email, claimed_at, submitted_at, expires_at,
   evidence_path, evidence_thumb_path, evidence_bytes, evidence_mime,
-  evidence_sha256, captured_at, capture_lat, capture_lon, capture_accuracy_m,
+  evidence_sha256, captured_at, capture_lat, capture_lon AS capture_lng, capture_accuracy_m,
   model_verdict, model_confidence, model_observed_cents, model_raw,
   model_provider, model_latency_ms, mock_scenario, created_at, updated_at
 `;
@@ -76,16 +87,6 @@ export async function insertBounty(
 export async function getBountyById(sql: Sql, id: string): Promise<BountyRow | null> {
   const [row] = await sql<BountyRow[]>`
     SELECT ${sql.unsafe(BOUNTY_COLUMNS)} FROM bounties WHERE id = ${id}
-  `;
-  return row ?? null;
-}
-
-export async function findBountyByTokenHash(
-  sql: Sql,
-  hash: string,
-): Promise<BountyRow | null> {
-  const [row] = await sql<BountyRow[]>`
-    SELECT ${sql.unsafe(BOUNTY_COLUMNS)} FROM bounties WHERE claim_token_hash = ${hash}
   `;
   return row ?? null;
 }
@@ -175,6 +176,57 @@ export async function listBounties(sql: Sql, limit = 100): Promise<BountyRow[]> 
     ORDER BY created_at DESC
     LIMIT ${limit}
   `;
+}
+
+export interface BountyKpis {
+  total: number;
+  inFlight: number;
+  paid: number;
+  failed: number;
+  posted: number;
+  paidCents: number;
+}
+
+/**
+ * The headline numbers for the requester console.
+ *
+ * One query, computed in the database, so the console never has to pull every
+ * row to count them. The statuses are grouped by what they MEAN: money that
+ * moved, money that is moving, money that was refused.
+ */
+export async function getBountyKpis(sql: Sql): Promise<BountyKpis> {
+  const [row] = await sql<
+    {
+      total: number;
+      in_flight: number;
+      paid: number;
+      failed: number;
+      posted: number;
+      paid_cents: number;
+    }[]
+  >`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (
+        WHERE status IN ('POSTED', 'CLAIMED', 'SUBMITTED', 'VERIFYING', 'PAYING')
+      )::int AS in_flight,
+      COUNT(*) FILTER (WHERE status = 'PAID')::int AS paid,
+      COUNT(*) FILTER (
+        WHERE status IN ('REJECTED', 'PAYOUT_FAILED', 'PAYOUT_BLOCKED')
+      )::int AS failed,
+      COUNT(*) FILTER (WHERE status = 'POSTED')::int AS posted,
+      COALESCE(SUM(reward_cents) FILTER (WHERE status = 'PAID'), 0)::int AS paid_cents
+    FROM bounties
+  `;
+
+  return {
+    total: Number(row?.total ?? 0),
+    inFlight: Number(row?.in_flight ?? 0),
+    paid: Number(row?.paid ?? 0),
+    failed: Number(row?.failed ?? 0),
+    posted: Number(row?.posted ?? 0),
+    paidCents: Number(row?.paid_cents ?? 0),
+  };
 }
 
 // ------------------------------------------------------------------ evidence

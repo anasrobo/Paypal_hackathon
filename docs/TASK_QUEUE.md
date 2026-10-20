@@ -43,29 +43,29 @@
 - [x] T2-09 `src/server/paypal/*` provider interface, mock, sandbox, HMAC signing (deps: T2-01) (files: src/server/paypal/**) (accept: npm test -- paypal)
 - [x] T2-10 `src/server/services/*` bounty, verification, payout, reconcile (deps: T2-03 T2-08 T2-09) (files: src/server/services/**) (accept: npm test -- integration)
 - [x] T2-11 `src/ops/ledger-query.ts` one pure SQL builder (deps: T2-03) (files: src/ops/ledger-query.ts) (accept: npm test -- ledger-query)
-- [ ] T2-12 Integration tests: the eight money-safety invariants (deps: T2-10) (files: tests/integration/**) (accept: npm test -- integration)
+- [x] T2-12 Integration tests: the eight money-safety invariants (deps: T2-10) (files: tests/integration/**) (accept: npm test -- integration)
 
 ## P3 — Route handlers
 
-- [ ] T3-01 `src/app/api/health/route.ts` (deps: T2-02) (files: src/app/api/health/**) (accept: npm run rehearse)
-- [ ] T3-02 `src/app/api/claim/route.ts` (deps: T2-10) (files: src/app/api/claim/**) (accept: npm run rehearse)
-- [ ] T3-03 `src/app/api/paypal/webhook/route.ts` (deps: T2-09 T2-10) (files: src/app/api/paypal/webhook/**) (accept: npm test -- webhook)
-- [ ] T3-04 `src/app/api/cron/reconcile/route.ts` (deps: T2-10) (files: src/app/api/cron/reconcile/**) (accept: npm run rehearse)
-- [ ] T3-05 `src/app/api/ops/ledger/route.ts` paged + cached count (deps: T2-11) (files: src/app/api/ops/ledger/**) (accept: npm test -- ledger-query)
-- [ ] T3-06 `scripts/rehearse.ts` headless money path, non-zero exit on any miss (deps: T3-02 T3-03) (files: scripts/rehearse.ts) (accept: npm run rehearse)
+- [x] T3-01 `src/app/api/health/route.ts` (deps: T2-02) (files: src/app/api/health/**) (accept: npm run rehearse)
+- [x] T3-02 `src/app/api/claim/route.ts` (deps: T2-10) (files: src/app/api/claim/**) (accept: npm run rehearse)
+- [x] T3-03 `src/app/api/paypal/webhook/route.ts` (deps: T2-09 T2-10) (files: src/app/api/paypal/webhook/**) (accept: npm test -- webhook)
+- [x] T3-04 `src/app/api/cron/reconcile/route.ts` (deps: T2-10) (files: src/app/api/cron/reconcile/**) (accept: npm run rehearse)
+- [x] T3-05 `src/app/api/ops/ledger/route.ts` paged + cached count (deps: T2-11) (files: src/app/api/ops/ledger/**) (accept: npm test -- ledger-query)
+- [x] T3-06 `scripts/rehearse.ts` headless money path, non-zero exit on any miss (deps: T3-02 T3-03) (files: scripts/rehearse.ts) (accept: npm run rehearse)
 
 ## P4 — Screens and the AG Grid ledger
 
-- [ ] T4-01 UI primitives in `src/components/ui/` (deps: T0-03) (files: src/components/ui/**) (accept: npm run build)
-- [ ] T4-02 `src/app/layout.tsx` + requester console `src/app/page.tsx` (deps: T4-01 T2-10) (files: src/app/layout.tsx src/app/page.tsx src/components/console/**) (accept: npm run build)
-- [ ] T4-03 Capture screen `src/app/claim/[token]/page.tsx` (deps: T4-02 T2-07) (files: src/app/claim/** src/components/claim/**) (accept: npm run build)
-- [ ] T4-04 Evidence view `src/app/bounty/[id]/page.tsx` (deps: T4-02) (files: src/app/bounty/** src/components/bounty/**) (accept: npm run build)
-- [ ] T4-05 `/ops` AG Grid: infinite row model, custom renderers, theme, NL query (deps: T4-02 T3-05) (files: src/app/ops/** src/components/ops/**) (accept: npm test -- nl-query)
+- [x] T4-01 UI primitives in `src/components/ui/` (deps: T0-03) (files: src/components/ui/**) (accept: npm run build)
+- [x] T4-02 `src/app/layout.tsx` + requester console `src/app/page.tsx` (deps: T4-01 T2-10) (files: src/app/layout.tsx src/app/page.tsx src/components/console/**) (accept: npm run build)
+- [x] T4-03 Capture screen `src/app/claim/[token]/page.tsx` (deps: T4-02 T2-07) (files: src/app/claim/** src/components/claim/**) (accept: npm run build)
+- [x] T4-04 Evidence view `src/app/bounty/[id]/page.tsx` (deps: T4-02) (files: src/app/bounty/** src/components/bounty/**) (accept: npm run build)
+- [x] T4-05 `/ops` AG Grid: infinite row model, custom renderers, theme, NL query (deps: T4-02 T3-05) (files: src/app/ops/** src/components/ops/**) (accept: npm test -- nl-query)
 - [ ] T4-06 Responsive pass at 390px and 1280px, every state designed (deps: T4-03 T4-04 T4-05) (files: src/app/** src/components/**) (accept: npm run e2e)
 
 ## P5 — Seed, rehearsal, end-to-end
 
-- [ ] T5-01 `db/seed.ts` deterministic and idempotent (deps: T2-10 T2-07) (files: db/seed.ts) (accept: npm run db:seed)
+- [x] T5-01 `db/seed.ts` deterministic and idempotent (deps: T2-10 T2-07) (files: db/seed.ts) (accept: npm run db:seed)
 - [ ] T5-02 `e2e/demo-flow.spec.ts` and `e2e/ops.spec.ts` (deps: T4-06 T5-01) (files: e2e/** playwright.config.ts) (accept: npm run e2e)
 - [ ] T5-03 Committed screenshots at 390px and 1280px (deps: T5-02) (files: e2e/screenshots/**) (accept: npm run e2e)
 

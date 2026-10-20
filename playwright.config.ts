@@ -3,9 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 const BASE_URL = process.env.APP_URL ?? "http://localhost:3000";
 
 // The demo store. Every seeded bounty uses these coordinates, so the
-// geofence rule is meaningful rather than decorative.
-export const DEMO_LAT = 12.9716;
-export const DEMO_LNG = 77.5946;
+// geofence rule is meaningful rather than decorative. They match
+// `db/seed.ts` exactly — if they drift, the end-to-end test fails on the
+// geofence rule instead of on a typo.
+export const DEMO_LAT = 37.7955;
+export const DEMO_LNG = -122.3937;
 
 export default defineConfig({
   testDir: "./e2e",

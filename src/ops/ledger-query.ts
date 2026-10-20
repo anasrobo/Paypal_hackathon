@@ -46,16 +46,25 @@ const COLUMN_TO_SQL: Record<LedgerColumn, string> = {
   claimedByEmail: "b.claimed_by_email",
   requesterEmail: "b.requester_email",
   createdAt: "b.created_at",
-  paidAt: "b.paid_at",
+  paidAt: "p.paid_at",
 };
 
-export type FilterOp = "eq" | "contains" | "gte" | "lte" | "in";
+export type FilterOp = "eq" | "neq" | "contains" | "gte" | "lte" | "in";
+
+const FILTER_OPS: ReadonlySet<FilterOp> = new Set([
+  "eq",
+  "neq",
+  "contains",
+  "gte",
+  "lte",
+  "in",
+]);
 
 export interface LedgerFilter {
   column: LedgerColumn;
   op: FilterOp;
   /** A string for contains, a number for the numeric comparisons, a list for `in`. */
-  value: string | number | string[];
+  value: string | number | Array<string | number>;
 }
 
 export interface LedgerQuery {
@@ -100,6 +109,11 @@ function whereClause(
       case "eq": {
         values.push(filter.value);
         parts.push(`${column} = $${values.length}`);
+        break;
+      }
+      case "neq": {
+        values.push(filter.value);
+        parts.push(`${column} <> $${values.length}`);
         break;
       }
       case "contains": {
@@ -164,7 +178,7 @@ export function buildLedgerQuery(query: LedgerQuery): BuiltLedgerQuery {
     SELECT
       b.id, b.sku, b.store_name, b.status, b.model_verdict, b.model_confidence,
       b.expected_value_cents, b.model_observed_cents, b.reward_cents,
-      b.claimed_by_email, b.requester_email, b.created_at, b.paid_at,
+      b.claimed_by_email, b.requester_email, b.created_at, p.paid_at,
       b.evidence_path, b.evidence_thumb_path, b.mock_scenario,
       p.status AS payout_status, p.sender_batch_id, p.paid_at AS payout_paid_at
     FROM bounties b
@@ -177,6 +191,7 @@ export function buildLedgerQuery(query: LedgerQuery): BuiltLedgerQuery {
   const countText = `
     SELECT COUNT(*)::int AS count
     FROM bounties b
+    LEFT JOIN payouts p ON p.bounty_id = b.id
     ${where.text}
   `;
 
@@ -218,13 +233,39 @@ export function parseLedgerQuery(
   if (column && isLedgerColumn(column)) {
     const op = input.filterOp as FilterOp | undefined;
     const raw = input.filterValue;
-    if (raw !== undefined && op) {
-      const value = NUMERIC_COLUMNS.has(column) ? Number(raw) : raw;
-      if (typeof value === "number" && !Number.isFinite(value)) {
-        // An unparsable number is not a filter, it is a mistake.
-      } else {
+    if (raw !== undefined && op && FILTER_OPS.has(op)) {
+      const value = coerceFilterValue(column, op, raw);
+      if (value !== null) {
         query.filters.push({ column, op, value });
       }
+    }
+  }
+
+  // The grid sends a JSON array, so a query can combine a status with an
+  // amount — "paid over five dollars" is two conditions, not one. Every entry
+  // is validated against the same whitelist as a single filter.
+  const rawFilters = input.filters;
+  if (rawFilters) {
+    try {
+      const parsed: unknown = JSON.parse(rawFilters);
+      if (Array.isArray(parsed)) {
+        for (const entry of parsed) {
+          if (!entry || typeof entry !== "object") continue;
+          const candidate = entry as { column?: unknown; op?: unknown; value?: unknown };
+          if (typeof candidate.column !== "string" || !isLedgerColumn(candidate.column)) continue;
+          if (typeof candidate.op !== "string" || !FILTER_OPS.has(candidate.op as FilterOp)) continue;
+          const value = coerceFilterValue(
+            candidate.column,
+            candidate.op as FilterOp,
+            candidate.value,
+          );
+          if (value === null) continue;
+          query.filters.push({ column: candidate.column, op: candidate.op as FilterOp, value });
+        }
+      }
+    } catch {
+      // A malformed filter payload is ignored rather than fatal. The grid
+      // simply shows more rows than were asked for, and never the wrong ones.
     }
   }
 
@@ -233,4 +274,115 @@ export function parseLedgerQuery(
   }
 
   return query;
+}
+
+/**
+ * Coerce and validate a filter value.
+ *
+ * Returns null when the value cannot be used. A rejected filter is DROPPED,
+ * never guessed at: a filter that silently means something else is worse than
+ * no filter, because the operator would believe a narrower result than they
+ * are looking at.
+ */
+export function coerceFilterValue(
+  column: LedgerColumn,
+  op: FilterOp,
+  value: unknown,
+): string | number | Array<string | number> | null {
+  if (op === "in") {
+    const list = Array.isArray(value) ? value : [value];
+    const cleaned = list
+      .filter((item) => item !== null && item !== undefined)
+      .map((item) => (NUMERIC_COLUMNS.has(column) ? Number(item) : String(item)))
+      .filter((item) =>
+        typeof item === "number" ? Number.isFinite(item) : String(item).length > 0,
+      );
+    return cleaned.length > 0 ? (cleaned as Array<string | number>) : null;
+  }
+
+  if (NUMERIC_COLUMNS.has(column)) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+}
+
+/**
+ * The AG Grid filter model, in the shape the grid itself produces.
+ *
+ * The grid's own column filters and the natural-language layer both produce
+ * this shape, and the server turns it into SQL through exactly one path. That
+ * is what makes "show failed payouts" and clicking a column filter mean
+ * precisely the same thing.
+ */
+export interface GridFilterModel {
+  [columnId: string]: {
+    filterType?: string;
+    type?: string;
+    filter?: string | number;
+    filterTo?: number;
+    values?: string[];
+  };
+}
+
+/** Turn a grid filter model into the whitelisted filters the server wants. */
+export function gridFilterToLedgerFilters(
+  model: GridFilterModel | null | undefined,
+): LedgerFilter[] {
+  if (!model) return [];
+
+  const filters: LedgerFilter[] = [];
+
+  for (const [column, spec] of Object.entries(model)) {
+    if (!isLedgerColumn(column)) continue;
+
+    // A set filter carries a list of allowed values.
+    if (spec.filterType === "set") {
+      const values = spec.values ?? [];
+      if (values.length === 0) continue;
+      const cleaned = coerceFilterValue(column, "in", values);
+      if (cleaned === null) continue;
+      filters.push({ column, op: "in", value: cleaned });
+      continue;
+    }
+
+    if (spec.filterType === "number") {
+      const number = Number(spec.filter);
+      if (!Number.isFinite(number)) continue;
+      const type = spec.type ?? "equals";
+      if (type === "inRange") {
+        filters.push({ column, op: "gte", value: number });
+        const to = Number(spec.filterTo);
+        if (Number.isFinite(to)) filters.push({ column, op: "lte", value: to });
+      } else if (type === "greaterThan" || type === "greaterThanOrEqual") {
+        filters.push({ column, op: "gte", value: number });
+      } else if (type === "lessThan" || type === "lessThanOrEqual") {
+        filters.push({ column, op: "lte", value: number });
+      } else if (type === "notEqual") {
+        filters.push({ column, op: "neq", value: number });
+      } else {
+        filters.push({ column, op: "eq", value: number });
+      }
+      continue;
+    }
+
+    // A text filter.
+    const raw = spec.filter;
+    if (raw === undefined || raw === null || raw === "") continue;
+    const type = spec.type ?? "contains";
+    if (type === "equals") {
+      filters.push({ column, op: "eq", value: String(raw) });
+    } else if (type === "notEqual") {
+      filters.push({ column, op: "neq", value: String(raw) });
+    } else if (type === "startsWith") {
+      filters.push({ column, op: "contains", value: String(raw) });
+    } else {
+      filters.push({ column, op: "contains", value: String(raw) });
+    }
+  }
+
+  return filters;
 }
