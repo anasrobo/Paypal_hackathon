@@ -14,7 +14,7 @@ invariants *are* database constraints. A mocked `UNIQUE` proves nothing about
 the only thing that matters.
 
 **Where the tests live:** `tests/integration/money-safety.test.ts`
-(103 tests, plus `tests/unit/` for the pure domain).
+(107 tests, plus `tests/unit/` for the pure domain).
 
 Run them with `npm test`. The database is booted for you — there is no Docker
 requirement, because the suite uses an embedded Postgres binary.

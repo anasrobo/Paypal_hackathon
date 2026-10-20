@@ -13,7 +13,7 @@
  * container instead, and both paths run the same migrations.
  */
 
-import { rmSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import EmbeddedPostgres from "embedded-postgres";
 import { DB_OPTIONS } from "../../src/server/db/client";
 import { runMigrations } from "../../src/server/db/migrate";
@@ -28,28 +28,38 @@ let pg: EmbeddedPostgres | undefined;
 /**
  * The data directory for this run.
  *
- * A previous run may have left the directory behind — especially if the
- * server had to be force-killed — and initdb refuses a non-empty directory.
- * So the directory is removed first. On Windows a file can still be locked
- * for a moment after the process dies, so if the removal fails the run falls
- * back to a fresh directory instead of failing the whole suite.
+ * A UNIQUE directory, every time. A previous run may have left a directory
+ * behind — especially if the server had to be force-killed — and initdb
+ * refuses a non-empty directory. On Windows the old directory can also stay
+ * LOCKED for a while after the process dies, so removing it is not
+ * reliable. A unique name cannot collide and cannot be locked.
+ *
+ * The stale directories are garbage, but they are cleaned up eventually:
+ * anything older than two hours is removed at the start of the next run.
  */
 function freshDataDir(): string {
-  const base = "./.tmp/pgdata";
+  const dir = `./.tmp/pgdata-${process.pid}-${Date.now()}`;
+
   try {
-    rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
-    return base;
-  } catch {
-    const fallback = `./.tmp/pgdata-${Date.now()}`;
-    // Best effort: the stale directory is garbage, but it must never stop a
-    // test run.
-    try {
-      rmSync(base, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 });
-    } catch {
-      // ignored
+    if (existsSync("./.tmp")) {
+      const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+      for (const entry of readdirSync("./.tmp")) {
+        if (!entry.startsWith("pgdata")) continue;
+        const full = `./.tmp/${entry}`;
+        try {
+          if (statSync(full).mtimeMs < cutoff) {
+            rmSync(full, { recursive: true, force: true, maxRetries: 2, retryDelay: 200 });
+          }
+        } catch {
+          // A locked directory is not a reason to fail a test run.
+        }
+      }
     }
-    return fallback;
+  } catch {
+    // Best effort.
   }
+
+  return dir;
 }
 
 export async function setup(): Promise<void> {
@@ -76,7 +86,12 @@ export async function setup(): Promise<void> {
     user: USER,
     password: PASSWORD,
     port: PORT,
-    persistent: false,
+    // `persistent: true` is load-bearing on Windows. With `persistent: false`
+    // the library deletes the data directory IMMEDIATELY after `taskkill`,
+    // before Windows has released the handles — which fails with EBUSY and
+    // takes the whole test run down with it. The directory is unique per run
+    // anyway, and `freshDataDir` removes the stale ones.
+    persistent: true,
   });
 
   try {
@@ -98,7 +113,7 @@ export async function setup(): Promise<void> {
   } catch (error) {
     // Vitest does not call teardown when setup throws, so the server would be
     // left running and the process would never exit. Stop it here.
-    await pg.stop().catch(() => {});
+    await stopServer();
     pg = undefined;
     throw error;
   }
@@ -108,18 +123,32 @@ export async function teardown(): Promise<void> {
   if (pg) {
     const instance = pg;
     pg = undefined;
-    // On Windows the embedded server sometimes does not acknowledge the stop
-    // in time. A leftover postgres process holds the shared-memory block, and
-    // the NEXT run then fails with "pre-existing shared memory block is still
-    // in use". So the stop is bounded, and then it is forced.
-    const stopped = await Promise.race([
-      instance.stop().then(() => true),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
-    ]);
-    if (!stopped) {
-      console.warn("[setup] the embedded postgres did not stop in time — forcing it");
-      await forceStopPostgres();
-    }
+    await stopServer(instance);
+  }
+}
+
+/**
+ * Stop the embedded server, and never let it take the test run with it.
+ *
+ * The library's `stop()` is a generator that can throw, and on Windows the
+ * teardown races the operating system's handle release. The stop is therefore
+ * bounded, and then it is forced.
+ */
+async function stopServer(instance?: EmbeddedPostgres): Promise<void> {
+  const target = instance ?? pg;
+  if (!target) return;
+
+  const stopped = await Promise.race([
+    Promise.resolve(target.stop()).then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
+  ]);
+
+  if (!stopped) {
+    console.warn("[setup] the embedded postgres did not stop in time — forcing it");
+    await forceStopPostgres();
   }
 }
 

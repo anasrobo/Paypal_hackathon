@@ -2,9 +2,9 @@
 phase: 6
 status: IN_PROGRESS
 task: T6-05
-last_test: 103 passed / 0 failed, rehearsal 12/12, e2e 4/4, deployed and live
+last_test: 107 passed / 0 failed, rehearsal 12/12, e2e 4/4, deployed and live
 attempts: 0
-commit: cb76c65
+commit: 070e888
 <!-- GROUNDTRUTH:BUILD_STATE:END -->
 
 # Build state
@@ -129,3 +129,25 @@ Recorded once, so nobody re-derives them.
   That bug shipped once and was caught by the seed, not by the tests: none
   of the eight invariants asserted that a PERFECT submission is accepted.
   The happy path is now asserted explicitly, and it must stay asserted.
+- **The camel-case transform is a footgun, and it has bitten TWICE.** A row
+  key read with the wrong spelling is `undefined`, and
+  `Number(undefined ?? 0)` is a very convincing zero. The second case was
+  the KPI aggregate: the console said "18 paid" next to "$0.00 paid out".
+  `tests/integration/queries.test.ts` now asserts the row mapping against a
+  real database, so a third case would be caught.
+- **AG Grid sets `height: 100%` on its own root element**, so the height has
+  to come from a parent it can resolve against. Applied to the grid element
+  itself, the percentage resolved against an auto-height parent and the
+  WHOLE TABLE collapsed to two pixels — every row was in the DOM and
+  nowhere on the screen, and an assertion on the DOM alone passed happily.
+  The grid now sits inside a wrapper with a definite height, and the
+  end-to-end test asserts a row's BOUNDING BOX, not just its presence.
+- **The two integration test files shared one embedded Postgres** and each
+  truncated the tables in its own `beforeEach`, so they deleted each other's
+  rows. `fileParallelism: false` in `vitest.config.ts` runs them one after
+  another. The embedded server's own cleanup also raced the Windows handle
+  release, so the data directory is now unique per run and `persistent`.
+- **Never round-trip a tracked file through PowerShell 5.1.** `Get-Content
+  -Raw` reads as Windows-1252 and `Out-File -Encoding utf8` writes UTF-8, so
+  every em-dash in the file is silently mangled. Use the editor tools, or
+  `node`, for anything that touches a file with non-ASCII characters.

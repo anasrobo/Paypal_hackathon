@@ -52,6 +52,14 @@ test("the ledger pages from the server and answers plain language", async ({ pag
   // right-hand columns are outside the viewport.
   await expect(page.getByText("SKU", { exact: true }).first()).toBeVisible();
   await expect(page.locator(".ag-row").first()).toBeVisible();
+
+  // The rows must be ON THE SCREEN, not merely in the DOM. A grid whose
+  // height collapsed rendered every row invisibly, and an assertion on the
+  // DOM alone passed happily.
+  const rowBox = await page.locator(".ag-row").first().boundingBox();
+  expect(rowBox?.height ?? 0).toBeGreaterThan(10);
+  expect(rowBox?.width ?? 0).toBeGreaterThan(100);
+  await expect(page.getByText("PAID").first()).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/${project}-10-ops-ledger.png` });
 
   // ---- the natural-language layer -----------------------------------------

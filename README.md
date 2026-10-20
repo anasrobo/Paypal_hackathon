@@ -61,7 +61,7 @@ simulation of it.
 ### Try it
 
 ```bash
-npm test           # 103 tests, against a real Postgres
+npm test           # 107 tests, against a real Postgres
 npm run rehearse   # the whole money path, headless; non-zero on any miss
 npm run verify     # lint, typecheck, and five guard scripts
 npm run e2e        # Playwright, 390 px and 1280 px, with screenshots
