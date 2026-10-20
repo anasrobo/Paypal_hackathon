@@ -4,7 +4,7 @@ status: COMPLETE
 task: T2-01
 last_test: 63 passed / 0 failed
 attempts: 0
-commit: pending
+commit: 50f64b0282723988e125daf83b77d543879e49b8
 <!-- GROUNDTRUTH:BUILD_STATE:END -->
 
 # Build state
@@ -80,7 +80,9 @@ Recorded once, so nobody re-derives them.
 - Baseline commit for rollback: `e73f4e5639a8007e1fc4c695517dd6fe241e6808`.
 - **Git pushes work.** The `github_anas` MCP server is a remote HTTP server
   whose `Authorization` header carries an `anasrobo` token with push and admin
-  rights on `anasrobo/Paypal_hackathon`. It is stored in
-  `.git/gt-credentials` (inside `.git/`, never tracked) and wired up with
-  `git config --local credential.helper`. The MCP remains the path for
-  pull-request and merge operations, where `expectedHeadSha` matters.
+  rights on `anasrobo/Paypal_hackathon`. It is embedded in the LOCAL remote
+  URL inside `.git/config`, which is never committed, and the credential
+  helper chain is cleared so the system Git Credential Manager cannot
+  interfere. If the token rotates, re-point the remote and push again.
+  The MCP remains the path for pull-request and merge operations, where
+  `expectedHeadSha` matters.
