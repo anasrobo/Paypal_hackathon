@@ -32,17 +32,17 @@
 
 ## P2 — Server core
 
-- [ ] T2-01 `src/server/env.ts` zod-validated, crashes on a placeholder secret (deps: T0-03) (files: src/server/env.ts) (accept: npm run typecheck)
-- [ ] T2-02 `src/server/db/client.ts` one pool, pooler guard (deps: T2-01) (files: src/server/db/client.ts) (accept: npm run typecheck)
-- [ ] T2-03 `src/server/db/types.ts` + `src/server/db/queries.ts` (deps: T2-02) (files: src/server/db/**) (accept: npm run typecheck)
-- [ ] T2-04 `db/migrations/001_init.sql` `002_indexes.sql` `003_rls.sql` + state trigger (deps: T2-01) (files: db/migrations/**) (accept: npm run db:migrate)
-- [ ] T2-05 `scripts/migrate.ts` own runner, idempotent, re-runnable (deps: T2-02 T2-04) (files: scripts/migrate.ts) (accept: npm run db:migrate)
-- [ ] T2-06 `src/server/tokens.ts` HMAC claim tokens, single use (deps: T2-01) (files: src/server/tokens.ts) (accept: npm test -- tokens)
-- [ ] T2-07 `src/server/storage.ts` Supabase Storage, signed URLs only (deps: T2-01) (files: src/server/storage.ts) (accept: npm run typecheck)
-- [ ] T2-08 `src/server/vision/*` provider interface + deterministic mock (deps: T2-01) (files: src/server/vision/**) (accept: npm test -- vision)
-- [ ] T2-09 `src/server/paypal/*` provider interface, mock, sandbox, HMAC signing (deps: T2-01) (files: src/server/paypal/**) (accept: npm test -- paypal)
-- [ ] T2-10 `src/server/services/*` bounty, verification, payout, reconcile (deps: T2-03 T2-08 T2-09) (files: src/server/services/**) (accept: npm test -- integration)
-- [ ] T2-11 `src/ops/ledger-query.ts` one pure SQL builder (deps: T2-03) (files: src/ops/ledger-query.ts) (accept: npm test -- ledger-query)
+- [x] T2-01 `src/server/env.ts` zod-validated, crashes on a placeholder secret (deps: T0-03) (files: src/server/env.ts) (accept: npm run typecheck)
+- [x] T2-02 `src/server/db/client.ts` one pool, pooler guard (deps: T2-01) (files: src/server/db/client.ts) (accept: npm run typecheck)
+- [x] T2-03 `src/server/db/types.ts` + `src/server/db/queries.ts` (deps: T2-02) (files: src/server/db/**) (accept: npm run typecheck)
+- [x] T2-04 `db/migrations/001_init.sql` `002_indexes.sql` `003_rls.sql` + state trigger (deps: T2-01) (files: db/migrations/**) (accept: npm run db:migrate)
+- [x] T2-05 `scripts/migrate.ts` own runner, idempotent, re-runnable (deps: T2-02 T2-04) (files: scripts/migrate.ts) (accept: npm run db:migrate)
+- [x] T2-06 `src/server/tokens.ts` HMAC claim tokens, single use (deps: T2-01) (files: src/server/tokens.ts) (accept: npm test -- tokens)
+- [x] T2-07 `src/server/storage.ts` Supabase Storage, signed URLs only (deps: T2-01) (files: src/server/storage.ts) (accept: npm run typecheck)
+- [x] T2-08 `src/server/vision/*` provider interface + deterministic mock (deps: T2-01) (files: src/server/vision/**) (accept: npm test -- vision)
+- [x] T2-09 `src/server/paypal/*` provider interface, mock, sandbox, HMAC signing (deps: T2-01) (files: src/server/paypal/**) (accept: npm test -- paypal)
+- [x] T2-10 `src/server/services/*` bounty, verification, payout, reconcile (deps: T2-03 T2-08 T2-09) (files: src/server/services/**) (accept: npm test -- integration)
+- [x] T2-11 `src/ops/ledger-query.ts` one pure SQL builder (deps: T2-03) (files: src/ops/ledger-query.ts) (accept: npm test -- ledger-query)
 - [ ] T2-12 Integration tests: the eight money-safety invariants (deps: T2-10) (files: tests/integration/**) (accept: npm test -- integration)
 
 ## P3 — Route handlers

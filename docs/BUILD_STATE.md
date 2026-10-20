@@ -1,8 +1,8 @@
 <!-- GROUNDTRUTH:BUILD_STATE:BEGIN -->
-phase: 1
-status: COMPLETE
-task: T2-01
-last_test: 63 passed / 0 failed
+phase: 2
+status: IN_PROGRESS
+task: T2-12
+last_test: 63 passed / 0 failed, 4 migrations applied
 attempts: 0
 commit: 50f64b0282723988e125daf83b77d543879e49b8
 <!-- GROUNDTRUTH:BUILD_STATE:END -->
@@ -32,7 +32,7 @@ commit: 50f64b0282723988e125daf83b77d543879e49b8
 |---|---|---|---|---|
 | P0 Safe bootstrap | COMPLETE | — | guards green, build green | branch `feat/groundtruth-bootstrap`, baseline `e73f4e5` |
 | P1 Pure domain | COMPLETE | — | 63 unit tests passed | state machine, gate, money, geo |
-| P2 Server core | NOT_STARTED | — | — | needs `DATABASE_URL` |
+| P2 Server core | IN_PROGRESS | — | 4 migrations applied, 63 tests passed | env, db, tokens, storage, vision, paypal, services done; invariant tests pending |
 | P3 Route handlers | NOT_STARTED | — | — | |
 | P4 Screens + AG Grid | NOT_STARTED | — | — | |
 | P5 Seed + E2E | NOT_STARTED | — | — | |
@@ -69,9 +69,17 @@ Recorded once, so nobody re-derives them.
 - **Docker is NOT installed.** No `supabase start`, no local Postgres container.
   Development runs directly against the cloud Supabase project.
 - **Supabase CLI is NOT installed.** `scripts/migrate.ts` is our own runner.
-- **No `gh` CLI, no git credential manager.** `git push` cannot authenticate.
-  All GitHub writes go through the `github_anas` MCP (identity `anasrobo`).
-  The local clone is a development workspace only.
+  It is TRACKED in `schema_migrations`, so re-running is a no-op.
+- **A local Postgres IS available**, as the `embedded-postgres` dev
+  dependency, which ships real Windows binaries. The Vitest global setup
+  boots it on port 55432, applies the migrations, and tears it down. That is
+  how the money-safety invariants get tested against real database
+  constraints without Docker. CI uses a postgres service container instead,
+  and both paths run the same migrations.
+- **No `gh` CLI, no git credential manager.** The credential lives in the
+  local remote URL inside `.git/config`, which is never committed. The
+  `github_anas` MCP remains the path for pull-request and merge operations,
+  where `expectedHeadSha` matters.
 - Vercel account: Hobby, `defaultTeamId team_vhVlEWAK1DodUI2MnzqqUMPZ`
   (slug `duckhunt`). Hobby limits: 12 functions, 4.5 MB body, 2 daily crons,
   2 GB / 1 vCPU per function.
