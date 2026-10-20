@@ -41,8 +41,14 @@ export const PLACEHOLDERS = {
   paypalMockWebhookSecret: "mock-webhook-secret-placeholder",
 } as const;
 
-/** An optional string setting. Shared so the schema below stays readable. */
-const optionalText = z.string().min(1).optional();
+/**
+ * An optional string setting. Shared so the schema below stays readable.
+ *
+ * It is deliberately `z.string().optional()` and NOT `z.string().min(1)`:
+ * a `.env.local` that lists a setting with an empty value is a normal thing
+ * to find, and an empty optional setting is exactly what it means.
+ */
+const optionalText = z.string().optional();
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

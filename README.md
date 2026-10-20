@@ -71,16 +71,17 @@ npm run e2e        # Playwright, 390 px and 1280 px, with screenshots
 
 ## The judges' 60-second path
 
-Three links. No setup.
+Three links. No setup. **Live now at
+[`groundtruth-ten-beta.vercel.app`](https://groundtruth-ten-beta.vercel.app).**
 
-1. **[The console](https://groundtruth.vercel.app/)** — post a bounty, get a
+1. **[The console](https://groundtruth-ten-beta.vercel.app/)** — post a bounty, get a
    claim link.
-2. **[The claim link](https://groundtruth.vercel.app/claim/…)** — open it on
+2. **[The claim link](https://groundtruth-ten-beta.vercel.app/claim/…)** — open it on
    your phone. Accept it, photograph a shelf, submit.
-3. **[The evidence record](https://groundtruth.vercel.app/bounty/…)** — six
+3. **[The evidence record](https://groundtruth-ten-beta.vercel.app/bounty/…)** — six
    green rules, the model's opinion, and the payout.
 
-And if there is time: **[the ops ledger](https://groundtruth.vercel.app/ops)**
+And if there is time: **[the ops ledger](https://groundtruth-ten-beta.vercel.app/ops)**
 — every bounty in an AG Grid, with a natural-language query layer.
 
 ---

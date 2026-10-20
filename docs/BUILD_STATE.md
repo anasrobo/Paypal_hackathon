@@ -1,10 +1,10 @@
 <!-- GROUNDTRUTH:BUILD_STATE:BEGIN -->
-phase: 4
+phase: 6
 status: IN_PROGRESS
-task: T4-06
-last_test: 103 passed / 0 failed, rehearsal 12/12, build green, 9 serverless functions
+task: T6-05
+last_test: 103 passed / 0 failed, rehearsal 12/12, e2e 4/4, deployed and live
 attempts: 0
-commit: f4ef8c1
+commit: cb76c65
 <!-- GROUNDTRUTH:BUILD_STATE:END -->
 
 # Build state
@@ -34,10 +34,10 @@ commit: f4ef8c1
 | P1 Pure domain | COMPLETE | — | 63 unit tests passed | state machine, gate, money, geo |
 | P2 Server core | COMPLETE | — | 83 tests passed, 4 migrations applied | env, db, tokens, storage, vision, paypal, services |
 | P3 Route handlers | COMPLETE | — | rehearsal 12/12 | health, webhook, claim, uploads/sign, cron, ops/ledger written |
-| P4 Screens + AG Grid | IN_PROGRESS | — | build green, 9 functions | console, capture, evidence view, ops ledger with the NL query layer |
-| P5 Seed + E2E | IN_PROGRESS | — | seed green, e2e written | `db/seed.ts` seeds 35 rows; Playwright specs written, not yet run |
-| P6 Deploy | NOT_STARTED | — | — | Supabase is live and isolated; Vercel project not yet created |
-| P7 Submission | IN_PROGRESS | — | — | README, INVARIANTS written; DEMO.md and the Devpost entry outstanding |
+| P4 Screens + AG Grid | COMPLETE | — | build green, 9 functions | console, capture, evidence view, ops ledger with the NL query layer |
+| P5 Seed + E2E | COMPLETE | — | seed green, e2e 4/4 | `db/seed.ts` seeds 35 rows; Playwright screenshots committed |
+| P6 Deploy | COMPLETE | — | production health 200, db up | live at `groundtruth-ten-beta.vercel.app`, region `bom1`, no Git link |
+| P7 Submission | IN_PROGRESS | — | — | README, DEMO.md, INVARIANTS.md written; the Devpost entry is outstanding |
 
 ## Blockers
 
@@ -108,6 +108,19 @@ Recorded once, so nobody re-derives them.
   other eight are the three dynamic pages (`/`, `/bounty/[id]`,
   `/claim/[token]`) and the five API routes. Do not add a sixth route
   without a documented consolidation, or the deploy will fail.
+- **The AG Grid SET FILTER is an ENTERPRISE feature in v34.** The community
+  package exports `TextFilterModule`, `NumberFilterModule` and
+  `CustomFilterModule`, but NOT `SetFilterModule`. Using `agSetColumnFilter`
+  would have been a licence violation in a GPL-3.0 repository, and it threw
+  at runtime. The status and model columns use a TEXT filter.
+  `scripts/check-aggrid.mjs` now fails the build on `agSetColumnFilter`,
+  `agMultiColumnFilter` and `agSetFilter`.
+- **The production deployment is live at
+  `https://groundtruth-ten-beta.vercel.app`** (the name `groundtruth.vercel.app`
+  was taken globally). Vercel Authentication is OFF — a new project defaults
+  to `ssoProtection`, which puts a login page in front of every request, and a
+  judge who has to log in sees nothing. The project has NO Git link, so a
+  stray push cannot deploy over the live demo. See D-018.
 - **The `bounties` table stores `store_lon` and `capture_lon`, but the whole
   application speaks `lng`.** The query builder ALIASES them
   (`store_lon AS store_lng`), because the camel-case transform would

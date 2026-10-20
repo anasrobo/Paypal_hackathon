@@ -202,10 +202,23 @@ export function Field({
   children: React.ReactNode;
   className?: string;
 }) {
+  // The control gets an EXPLICIT accessible name.
+  //
+  // Without it the accessible name is the whole text of the wrapping label,
+  // which includes the hint — and, for a select, the text of its options. A
+  // screen reader would announce "Expected price what the tag should read",
+  // and so would a test. The name is the label; the hint is only a visible
+  // explanation.
+  const control = React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+        "aria-label": label,
+      })
+    : children;
+
   return (
     <label className={cn("block", className)}>
       <span className="label block">{label}</span>
-      <div className="mt-1.5">{children}</div>
+      <div className="mt-1.5">{control}</div>
       {hint ? <span className="mt-1 block text-[11px] text-faint">{hint}</span> : null}
     </label>
   );

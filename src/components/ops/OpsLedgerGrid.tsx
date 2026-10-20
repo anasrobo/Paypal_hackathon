@@ -29,13 +29,14 @@ import {
   ModuleRegistry,
   themeQuartz,
   type ColDef,
+  type FilterChangedEvent,
   type GridApi,
   type GridReadyEvent,
   type IDatasource,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { gridFilterToLedgerFilters, type GridFilterModel } from "@/ops/ledger-query";
+import { gridFilterToLedgerFilters, type GridFilterModel, type LedgerFilter } from "@/ops/ledger-query";
 import { Badge, Button, Input } from "@/components/ui/primitives";
 import {
   EvidenceCell,
@@ -45,7 +46,7 @@ import {
   StatusCell,
   VerdictCell,
 } from "./cellRenderers";
-import { ALL_STATUSES, parseNaturalQuery, type NlParseResult } from "./nl-query";
+import { parseNaturalQuery, type NlParseResult } from "./nl-query";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -96,6 +97,23 @@ export interface LedgerRow {
 export function OpsLedgerGrid() {
   const gridApi = useRef<GridApi<LedgerRow> | null>(null);
   const searchRef = useRef("");
+  /**
+   * The filters, in ONE place.
+   *
+   * The grid's own column filters and the natural-language layer both end up
+   * here, and the datasource reads from here. That is what makes "show failed
+   * payouts" and clicking a column filter mean exactly the same thing — there
+   * is only one filter, and one path to the server.
+   *
+   * The two sources are kept apart on purpose. The grid's column filters are
+   * the operator's; the natural-language filters are the question's. Both
+   * apply, and the chip says which is which.
+   */
+  /** The combined list the datasource reads. Written synchronously. */
+  const combinedRef = useRef<LedgerFilter[]>([]);
+  /** The two sources, for the handlers that must not see a stale copy. */
+  const nlFiltersRef = useRef<LedgerFilter[]>([]);
+  const gridFiltersRef = useRef<LedgerFilter[]>([]);
 
   const [search, setSearch] = useState("");
   const [nlText, setNlText] = useState("");
@@ -130,16 +148,20 @@ export function OpsLedgerGrid() {
         headerName: "Status",
         width: 148,
         cellRenderer: StatusCell,
-        filter: "agSetColumnFilter",
-        filterParams: { values: ALL_STATUSES },
+        // A TEXT filter, not a set filter. The AG Grid set filter is an
+        // Enterprise feature, and this repository is GPL-3.0 — using it
+        // would be a licence violation. `scripts/check-aggrid.mjs` fails the
+        // build if it ever appears.
+        filter: "agTextColumnFilter",
+        filterParams: { filterOptions: ["equals", "notEqual", "contains"] },
       },
       {
         field: "modelVerdict",
         headerName: "Model",
         width: 124,
         cellRenderer: VerdictCell,
-        filter: "agSetColumnFilter",
-        filterParams: { values: ["match", "mismatch", "unreadable"] },
+        filter: "agTextColumnFilter",
+        filterParams: { filterOptions: ["equals", "notEqual", "contains"] },
       },
       {
         field: "modelConfidence",
@@ -209,9 +231,7 @@ export function OpsLedgerGrid() {
           query.set("direction", sort.sort === "asc" ? "asc" : "desc");
         }
 
-        const filters = gridFilterToLedgerFilters(
-          (params.filterModel ?? null) as GridFilterModel | null,
-        );
+        const filters = combinedRef.current;
         if (filters.length > 0) query.set("filters", JSON.stringify(filters));
 
         const term = searchRef.current.trim();
@@ -255,11 +275,40 @@ export function OpsLedgerGrid() {
     gridApi.current?.purgeInfiniteCache();
   }, [search]);
 
+  /**
+   * Apply a filter, from anywhere.
+   *
+   * The cache is purged explicitly. A filter whose component has never been
+   * opened does not always fire the change event the infinite row model
+   * listens for, so the refresh is made certain rather than hoped for.
+   */
+  const commit = useCallback((nextNl: LedgerFilter[], nextGrid: LedgerFilter[]) => {
+    nlFiltersRef.current = nextNl;
+    gridFiltersRef.current = nextGrid;
+    combinedRef.current = [...nextNl, ...nextGrid];
+    gridApi.current?.purgeInfiniteCache();
+  }, []);
+
+  /**
+   * The operator used a column filter.
+   *
+   * The grid's own filters are written into the SAME list the natural
+   * language layer writes into, so the two can never disagree about what the
+   * server is being asked for.
+   */
+  const onFilterChanged = useCallback(
+    (event: FilterChangedEvent) => {
+      const model = (event.api.getFilterModel() ?? {}) as GridFilterModel;
+      commit(nlFiltersRef.current, gridFilterToLedgerFilters(model));
+    },
+    [commit],
+  );
+
   function runNaturalQuery() {
     const result = parseNaturalQuery(nlText);
     setNlResult(result);
     if (!result.ok) return;
-    gridApi.current?.setFilterModel(result.filterModel);
+    commit(gridFilterToLedgerFilters(result.filterModel), gridFiltersRef.current);
     setSearch(result.search ?? "");
   }
 
@@ -267,21 +316,27 @@ export function OpsLedgerGrid() {
     setNlText("");
     setNlResult(null);
     setSearch("");
-    gridApi.current?.setFilterModel(null);
+    commit([], []);
   }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search SKU, store or id"
             aria-label="Search the ledger"
-            className="max-w-xs"
+            className="w-full sm:max-w-xs"
           />
           <div className="flex min-w-0 flex-1 items-center gap-2">
+            {/*
+              The input must be allowed to shrink BELOW its content width,
+              and the button must never shrink at all. Without both, the
+              input's placeholder keeps it wide enough to cover the button,
+              and on a phone the button cannot be tapped.
+            */}
             <Input
               value={nlText}
               onChange={(event) => setNlText(event.target.value)}
@@ -290,10 +345,13 @@ export function OpsLedgerGrid() {
               }}
               placeholder="Ask the ledger: show failed payouts"
               aria-label="Ask the ledger in plain language"
+              className="min-w-0 flex-1"
             />
-            <Button onClick={runNaturalQuery}>Ask</Button>
+            <Button className="shrink-0" onClick={runNaturalQuery}>
+              Ask
+            </Button>
           </div>
-          <Button variant="ghost" onClick={clearEverything}>
+          <Button className="shrink-0" variant="ghost" onClick={clearEverything}>
             Clear
           </Button>
         </div>
@@ -322,7 +380,7 @@ export function OpsLedgerGrid() {
                     const result = parseNaturalQuery(suggestion);
                     setNlResult(result);
                     if (!result.ok) return;
-                    gridApi.current?.setFilterModel(result.filterModel);
+                    commit(gridFilterToLedgerFilters(result.filterModel), gridFiltersRef.current);
                     setSearch(result.search ?? "");
                   }}
                   className="rounded border border-warn/30 px-1.5 py-0.5 text-[11px] text-muted transition-colors hover:border-money/40 hover:text-money"
@@ -346,6 +404,7 @@ export function OpsLedgerGrid() {
           theme={gtTheme}
           columnDefs={columnDefs}
           onGridReady={onGridReady}
+          onFilterChanged={onFilterChanged}
           rowModelType="infinite"
           cacheBlockSize={50}
           maxBlocksInCache={8}

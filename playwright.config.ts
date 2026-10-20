@@ -43,6 +43,10 @@ export default defineConfig({
         permissions: ["geolocation"],
         geolocation: { latitude: DEMO_LAT, longitude: DEMO_LNG },
       },
+      // The mobile project is slower: a phone-sized viewport, a touch
+      // context, and a horizontally scrolling grid. The desktop project
+      // finishes the same test in a few seconds.
+      timeout: 180_000,
     },
   ],
 

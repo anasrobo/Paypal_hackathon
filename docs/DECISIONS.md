@@ -426,3 +426,45 @@ have made the webhook handler harder to audit.
 **Revisit if.** The build ever exceeds nine functions. The ladder is, in
 order: fold `/api/uploads/sign` into `/api/claim`, then serve the ledger
 count from a cached edge response.
+
+---
+
+## D-018 — The deployment: Mumbai, no Git link, and no authentication wall
+
+**Date:** 2026-10-20
+**Status:** FROZEN
+
+**Decision.** The Vercel project is `duckhunt/groundtruth`, deployed to
+**`bom1` (Mumbai)**, created **without a Git repository link**, and with
+**Vercel Authentication disabled**.
+
+**Rationale.** Three separate reasons, each of which would have broken the
+demo on its own.
+
+- **Region.** The plan assumed a new Supabase project in `us-east-1`. The
+  project that actually exists is in `ap-south-1`, so the functions are
+  deployed to `bom1` — the same continent and the same provider region as
+  the database. The `vercel.json` `regions` field is set to match, because
+  it overrides the project setting.
+- **No Git link.** The project was created through the API without
+  `gitRepository`. A stray push to `main` therefore CANNOT deploy over the
+  live demo. Deploys are explicit, and the rollback target is always the
+  previous deployment.
+- **No authentication wall.** A new Vercel project defaults to
+  `ssoProtection: all_except_custom_domains`, which puts a login page in
+  front of every request. A judge who has to log in to see the demo sees
+  nothing. It is turned off explicitly, and a deployment without it is
+  verified by fetching `/api/health` anonymously.
+
+The production domain is `https://groundtruth-ten-beta.vercel.app` — the name
+`groundtruth.vercel.app` was already taken globally, so the CLI assigned a
+suffix. `APP_URL` points at the production ALIAS, not at a deployment-specific
+URL, because the mock PayPal provider delivers its webhook to `APP_URL` and
+must reach the same deployment that started the payout.
+
+**Rejected alternative.** Connecting the Git repository and letting Vercel
+deploy on push. It is the normal workflow, and it is exactly the workflow
+that clobbers a live demo with a half-finished branch.
+
+**Revisit if.** A custom domain is registered, or the deployment needs to be
+reachable from a second region.

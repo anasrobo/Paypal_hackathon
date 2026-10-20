@@ -81,7 +81,7 @@ test("a bounty is posted, proved, and paid", async ({ page }, testInfo) => {
   await expect(page.getByText("Evidence accepted")).toBeVisible({ timeout: 45_000 });
   await expect(page.getByText("Paid", { exact: true })).toBeVisible();
   await expect(page.getByText("demo@shopper.test")).toBeVisible();
-  await expect(page.getByText("The six rules")).toBeVisible();
+  await expect(page.getByText("The six rules", { exact: true })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/${project}-06-paid.png`, fullPage: true });
 
   // ---- 7. the evidence record ---------------------------------------------
@@ -91,7 +91,7 @@ test("a bounty is posted, proved, and paid", async ({ page }, testInfo) => {
   expect(bountyHref).toBeTruthy();
 
   await page.goto(bountyHref!);
-  await expect(page.getByText("The six rules")).toBeVisible();
+  await expect(page.getByText("The six rules", { exact: true })).toBeVisible();
   await expect(page.getByText("6 passed · 0 failed")).toBeVisible();
   await expect(page.getByText("PAID").first()).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/${project}-07-evidence-record.png`, fullPage: true });

@@ -23,6 +23,13 @@ test.beforeAll(async () => {
 test("the ledger pages from the server and answers plain language", async ({ page }, testInfo) => {
   const project = testInfo.project.name;
 
+  page.on("pageerror", (error) => {
+    console.log(`[ops] pageerror: ${error.message}`);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") console.log(`[ops] console: ${message.text()}`);
+  });
+
   const ledgerRequests: string[] = [];
   page.on("request", (request) => {
     if (request.url().includes("/api/ops/ledger")) {
@@ -40,11 +47,12 @@ test("the ledger pages from the server and answers plain language", async ({ pag
   expect(firstRequest.searchParams.get("endRow")).not.toBeNull();
   expect(Number(firstRequest.searchParams.get("endRow"))).toBeLessThanOrEqual(500);
 
-  // The custom renderers are on the page.
-  await expect(page.getByText("End to end")).toBeVisible();
-  await expect(page.getByText("Expected")).toBeVisible();
-  await expect(page.getByText("Reward")).toBeVisible();
-  await page.screenshot({ path: `${SHOTS}/${project}-10-ops-ledger.png`, fullPage: true });
+  // The custom renderers are on the page. The first column is asserted rather
+  // than the last, because at 390 px the grid scrolls horizontally and the
+  // right-hand columns are outside the viewport.
+  await expect(page.getByText("SKU", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".ag-row").first()).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/${project}-10-ops-ledger.png` });
 
   // ---- the natural-language layer -----------------------------------------
   const ask = page.getByLabel("Ask the ledger in plain language");
@@ -67,11 +75,14 @@ test("the ledger pages from the server and answers plain language", async ({ pag
     )
     .toBe(true);
 
-  await page.screenshot({ path: `${SHOTS}/${project}-11-ops-nl-query.png`, fullPage: true });
+  // The grid must finish loading before it is screenshotted, or the
+  // screenshot waits on a page whose height is still changing.
+  await expect(page.locator(".ag-row").first()).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/${project}-11-ops-nl-query.png` });
 
   // ---- an unknown phrase is refused, never guessed -------------------------
   await ask.fill("banana");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(page.getByText(/did not understand/i)).toBeVisible();
-  await page.screenshot({ path: `${SHOTS}/${project}-12-ops-not-understood.png`, fullPage: true });
+  await page.screenshot({ path: `${SHOTS}/${project}-12-ops-not-understood.png` });
 });

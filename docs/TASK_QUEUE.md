@@ -61,24 +61,24 @@
 - [x] T4-03 Capture screen `src/app/claim/[token]/page.tsx` (deps: T4-02 T2-07) (files: src/app/claim/** src/components/claim/**) (accept: npm run build)
 - [x] T4-04 Evidence view `src/app/bounty/[id]/page.tsx` (deps: T4-02) (files: src/app/bounty/** src/components/bounty/**) (accept: npm run build)
 - [x] T4-05 `/ops` AG Grid: infinite row model, custom renderers, theme, NL query (deps: T4-02 T3-05) (files: src/app/ops/** src/components/ops/**) (accept: npm test -- nl-query)
-- [ ] T4-06 Responsive pass at 390px and 1280px, every state designed (deps: T4-03 T4-04 T4-05) (files: src/app/** src/components/**) (accept: npm run e2e)
+- [x] T4-06 Responsive pass at 390px and 1280px, every state designed (deps: T4-03 T4-04 T4-05) (files: src/app/** src/components/**) (accept: npm run e2e)
 
 ## P5 — Seed, rehearsal, end-to-end
 
 - [x] T5-01 `db/seed.ts` deterministic and idempotent (deps: T2-10 T2-07) (files: db/seed.ts) (accept: npm run db:seed)
-- [ ] T5-02 `e2e/demo-flow.spec.ts` and `e2e/ops.spec.ts` (deps: T4-06 T5-01) (files: e2e/** playwright.config.ts) (accept: npm run e2e)
-- [ ] T5-03 Committed screenshots at 390px and 1280px (deps: T5-02) (files: e2e/screenshots/**) (accept: npm run e2e)
+- [x] T5-02 `e2e/demo-flow.spec.ts` and `e2e/ops.spec.ts` (deps: T4-06 T5-01) (files: e2e/** playwright.config.ts) (accept: npm run e2e)
+- [x] T5-03 Committed screenshots at 390px and 1280px (deps: T5-02) (files: e2e/screenshots/**) (accept: npm run e2e)
 
 ## P6 — Deploy
 
-- [ ] T6-01 New isolated Supabase project, migrations applied twice (deps: T5-01) (files: docs/DECISIONS.md) (accept: npm run db:migrate)
-- [ ] T6-02 Vercel project in scope `duckhunt`, no gitRepository (deps: T6-01) (files: vercel.json docs/DECISIONS.md) (accept: npm run build)
-- [ ] T6-03 Environment variables set, secrets marked Sensitive (deps: T6-01 T6-02) (files: docs/DECISIONS.md) (accept: npm run build)
-- [ ] T6-04 First production deploy, function count asserted, health checked (deps: T6-03) (files: docs/BUILD_STATE.md) (accept: npm run verify)
+- [x] T6-01 New isolated Supabase project, migrations applied twice (deps: T5-01) (files: docs/DECISIONS.md) (accept: npm run db:migrate)
+- [x] T6-02 Vercel project in scope `duckhunt`, no gitRepository (deps: T6-01) (files: vercel.json docs/DECISIONS.md) (accept: npm run build)
+- [x] T6-03 Environment variables set, secrets marked Sensitive (deps: T6-01 T6-02) (files: docs/DECISIONS.md) (accept: npm run build)
+- [x] T6-04 First production deploy, function count asserted, health checked (deps: T6-03) (files: docs/BUILD_STATE.md) (accept: npm run verify)
 - [ ] T6-05 GitHub finalisation: branch, PR, squash merge, About-panel licence (deps: T6-04) (files: -) (accept: git log --oneline -1)
 
 ## P7 — Submission
 
-- [ ] T7-01 `README.md` with a 5-minute quickstart and a judges' 60-second path (deps: T6-04) (files: README.md) (accept: npm run verify)
-- [ ] T7-02 `docs/DEMO.md` and `docs/INVARIANTS.md` (deps: T6-04) (files: docs/DEMO.md docs/INVARIANTS.md) (accept: npm run verify)
+- [x] T7-01 `README.md` with a 5-minute quickstart and a judges' 60-second path (deps: T6-04) (files: README.md) (accept: npm run verify)
+- [x] T7-02 `docs/DEMO.md` and `docs/INVARIANTS.md` (deps: T6-04) (files: docs/DEMO.md docs/INVARIANTS.md) (accept: npm run verify)
 - [ ] T7-03 Devpost entry, YouTube video under 3 minutes, submitted before 9 Nov (deps: T7-01 T7-02) (files: -) (accept: manual)

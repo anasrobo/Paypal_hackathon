@@ -40,6 +40,9 @@ const SOURCE_FORBIDDEN = [
   { pattern: /ag-grid-enterprise/i, why: "AG Grid Enterprise import" },
   { pattern: /licenseKey/i, why: "AG Grid licence key (Enterprise feature)" },
   { pattern: /serverSideRowModel/i, why: "Server-Side Row Model is Enterprise-only; use the 'infinite' row model" },
+  { pattern: /agSetColumnFilter/i, why: "the Set Filter is Enterprise-only in AG Grid v34; use a text filter" },
+  { pattern: /agMultiColumnFilter/i, why: "the Multi Filter is Enterprise-only; use one filter per column" },
+  { pattern: /agSetFilter/i, why: "the Set Filter is Enterprise-only in AG Grid v34; use a text filter" },
   { pattern: /ag-theme-alpine|ag-theme-quartz|ag-theme-material/i, why: "legacy CSS theme; use the Theming API (themeQuartz.withParams)" },
 ];
 
