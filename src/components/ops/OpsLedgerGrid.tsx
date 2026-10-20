@@ -399,7 +399,16 @@ export function OpsLedgerGrid() {
         ) : null}
       </div>
 
-      <div className="panel overflow-hidden">
+      {/*
+        The grid is wrapped in a div with a DEFINITE height.
+
+        AG Grid sets `height: 100%` on its own root element, so the height has
+        to come from a parent it can actually resolve against. Applied to the
+        grid element itself, the percentage resolved against an auto-height
+        parent and the whole table collapsed to two pixels — the rows were in
+        the DOM and nowhere on the screen.
+      */}
+      <div className="h-[calc(100dvh-21rem)] min-h-[24rem] w-full">
         <AgGridReact<LedgerRow>
           theme={gtTheme}
           columnDefs={columnDefs}
@@ -415,7 +424,7 @@ export function OpsLedgerGrid() {
           overlayNoRowsTemplate={
             '<span style="color:#8a93a3;font-size:12px;padding:24px;display:block">No rows match this query.</span>'
           }
-          className="h-[calc(100dvh-22rem)] min-h-[26rem] w-full"
+          className="h-full w-full"
         />
       </div>
 

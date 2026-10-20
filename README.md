@@ -5,13 +5,13 @@ posts a micro-bounty for it, a human proves it with a phone camera and GPS, a
 deterministic rule set decides, and PayPal Payouts sends the money to that
 person's email in seconds.**
 
-Built with **PayPal Payouts** (money out to a stranger â€” not a checkout),
+Built with **PayPal Payouts** (money out to a stranger — not a checkout),
 **PayPal webhooks** (signed, idempotent, replay-safe), and a **vision model**
 that is advisory only: it reads the price tag, but a deterministic rule set
 makes the decision.
 
 > *Is SKU 4471 on the shelf at the store on Market Street, and does the tag
-> read $6.00?* â€” That is a question a procurement agent cannot answer from the
+> read $6.00?* — That is a question a procurement agent cannot answer from the
 > internet. GroundTruth lets the agent ask a human, and pays them for the
 > answer.
 
@@ -19,13 +19,13 @@ makes the decision.
 
 ## The 20-second demo
 
-1. A bounty card on the console: `SKU 4471 Â· Ferry Plaza Market Â· $6.00`.
+1. A bounty card on the console: `SKU 4471 · Ferry Plaza Market · $6.00`.
 2. A phone photo of the shelf, with a GPS fix and the distance to the store.
 3. The model reads the tag. **Six rules go green.**
-4. `PAID â€” $6.00 delivered to sam@shopper.test`
+4. `PAID — $6.00 delivered to sam@shopper.test`
 
 No cart. No card form. No checkout SDK. A checkout SDK physically cannot do
-this â€” **Payouts is a different PayPal product, and it is the product, not a
+this — **Payouts is a different PayPal product, and it is the product, not a
 feature bolted on.**
 
 ---
@@ -54,7 +54,7 @@ You need one value to see the whole product:
 | `VISION_PROVIDER` | `mock` (default) or a real multimodal API | `mock` |
 
 Everything else has a working default. **The demo runs end to end with
-`PAYPAL_PROVIDER=mock`** â€” the mock provider delivers a genuinely signed
+`PAYPAL_PROVIDER=mock`** — the mock provider delivers a genuinely signed
 webhook through the real handler, so the real code path is exercised, not a
 simulation of it.
 
@@ -74,60 +74,60 @@ npm run e2e        # Playwright, 390 px and 1280 px, with screenshots
 Three links. No setup. **Live now at
 [`groundtruth-ten-beta.vercel.app`](https://groundtruth-ten-beta.vercel.app).**
 
-1. **[The console](https://groundtruth-ten-beta.vercel.app/)** â€” post a bounty, get a
+1. **[The console](https://groundtruth-ten-beta.vercel.app/)** — post a bounty, get a
    claim link.
-2. **[The claim link](https://groundtruth-ten-beta.vercel.app/claim/â€¦)** â€” open it on
+2. **[The claim link](https://groundtruth-ten-beta.vercel.app/claim/…)** — open it on
    your phone. Accept it, photograph a shelf, submit.
-3. **[The evidence record](https://groundtruth-ten-beta.vercel.app/bounty/â€¦)** â€” six
+3. **[The evidence record](https://groundtruth-ten-beta.vercel.app/bounty/…)** — six
    green rules, the model's opinion, and the payout.
 
 And if there is time: **[the ops ledger](https://groundtruth-ten-beta.vercel.app/ops)**
-â€” every bounty in an AG Grid, with a natural-language query layer.
+— every bounty in an AG Grid, with a natural-language query layer.
 
 ---
 
 ## How it works
 
 ```
-â”Œâ”€ Browser (phone) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ 1. downsizes the photo to â‰¤1600 px / q0.82  (~250â€“400 KB)  â”‚
-â”‚ 2. reads GPS, and shows the distance to the store           â”‚
-â”‚ 3. PUTs the evidence straight to storage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”      â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”˜
-                                                      â”‚ signed upload URL
-                                                      â–¼
+┌─ Browser (phone) ──────────────────────────────────────────┐
+│ 1. downsizes the photo to ≤1600 px / q0.82  (~250–400 KB)  │
+│ 2. reads GPS, and shows the distance to the store           │
+│ 3. PUTs the evidence straight to storage ───────────┐      │
+└─────────────────────────────────────────────────────┼──────┘
+                                                      │ signed upload URL
+                                                      ▼
                                    Supabase Storage (private)
-                                                      â”‚
-â”Œâ”€ Browser â”€â”€ POST /api/claim (JSON only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤     â”‚
-â”‚                                                      â–¼     â”‚
-â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Vercel function â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚
-â”‚  â”‚ 1. verify the single-use claim token (HMAC)        â”‚   â”‚
-â”‚  â”‚ 2. insert the evidence row   (bounty_id UNIQUE)   â”‚   â”‚
-â”‚  â”‚ 3. CAS transition  CLAIMED â†’ SUBMITTED â†’ VERIFYING â”‚   â”‚
-â”‚  â”‚ 4. vision provider (mock | real) â†’ ADVISORY output â”‚   â”‚
-â”‚  â”‚ 5. evaluateGate()  â† PURE, six deterministic rules â”‚   â”‚
-â”‚  â”‚ 6. VERIFIED â†’ insert the payouts row (UNIQUE)      â”‚   â”‚
-â”‚  â”‚            BEFORE the provider call                â”‚   â”‚
-â”‚  â”‚          â†’ PAYING â†’ payPalProvider.createPayout()  â”‚   â”‚
-â”‚  â”‚ 7. the mock provider self-delivers a SIGNED        â”‚   â”‚
-â”‚  â”‚    webhook through the same handler the route uses â”‚   â”‚
-â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚
-â”‚         â”‚                                            â”‚      â”‚
-â”‚         â–¼                                            â–¼      â”‚
-â”‚   Supabase Postgres                    POST /api/paypal/webhook
-â”‚   (Supavisor pooler :6543)            verify sig â†’ insert-first
-â”‚                                       idempotency â†’ PAYINGâ†’PAID
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                                      │
+┌─ Browser ── POST /api/claim (JSON only) ────────────┤     │
+│                                                      ▼     │
+│  ┌──────────── Vercel function ───────────────────────┐   │
+│  │ 1. verify the single-use claim token (HMAC)        │   │
+│  │ 2. insert the evidence row   (bounty_id UNIQUE)   │   │
+│  │ 3. CAS transition  CLAIMED → SUBMITTED → VERIFYING │   │
+│  │ 4. vision provider (mock | real) → ADVISORY output │   │
+│  │ 5. evaluateGate()  ← PURE, six deterministic rules │   │
+│  │ 6. VERIFIED → insert the payouts row (UNIQUE)      │   │
+│  │            BEFORE the provider call                │   │
+│  │          → PAYING → payPalProvider.createPayout()  │   │
+│  │ 7. the mock provider self-delivers a SIGNED        │   │
+│  │    webhook through the same handler the route uses │   │
+│  └───────────────────────────────────────────────────┘   │
+│         │                                            │      │
+│         ▼                                            ▼      │
+│   Supabase Postgres                    POST /api/paypal/webhook
+│   (Supavisor pooler :6543)            verify sig → insert-first
+│                                       idempotency → PAYING→PAID
+└───────────────────────────────────────────────────────┘
 ```
 
 Three seams make the whole thing work with no credentials:
 
-1. **`VisionProvider`** â€” `mock` today, a real model in one env var.
-2. **`PayPalProvider`** â€” `mock` today (it self-delivers a *real signed
+1. **`VisionProvider`** — `mock` today, a real model in one env var.
+2. **`PayPalProvider`** — `mock` today (it self-delivers a *real signed
    webhook* through the *same handler* the HTTP route uses), `sandbox` later.
    **There is no `live` option and the repository has no live endpoint string
    in it.**
-3. **`StorageProvider`** â€” a private Supabase bucket, signed URLs only.
+3. **`StorageProvider`** — a private Supabase bucket, signed URLs only.
 
 ---
 
@@ -140,11 +140,11 @@ that may produce a `VERIFIED` bounty.
 | # | Rule | Condition | Fails closed on |
 |---|---|---|---|
 | 1 | `model_verdict_match` | the model read `match` | missing or malformed output |
-| 2 | `model_confidence_min` | confidence â‰¥ 0.75 | null, NaN |
+| 2 | `model_confidence_min` | confidence ≥ 0.75 | null, NaN |
 | 3 | `freshness_30m` | captured within 30 min, not >5 min in the future | missing timestamp |
-| 4 | `geo_250m` | haversine â‰¤ 250 m from the store | missing coordinates, or accuracy > 250 m |
-| 5 | `value_tolerance_10pct` | \|observed âˆ’ expected\| / expected â‰¤ 0.10 (integer maths) | expected â‰¤ 0, observed null |
-| 6 | `media_valid` | mime âˆˆ {jpeg, png, webp} **and** under 10 MB | missing media, oversized |
+| 4 | `geo_250m` | haversine ≤ 250 m from the store | missing coordinates, or accuracy > 250 m |
+| 5 | `value_tolerance_10pct` | \|observed − expected\| / expected ≤ 0.10 (integer maths) | expected ≤ 0, observed null |
+| 6 | `media_valid` | mime ∈ {jpeg, png, webp} **and** under 10 MB | missing media, oversized |
 
 **All six are always returned**, so the evidence screen shows a complete
 green/red checklist rather than a single verdict.
@@ -158,7 +158,7 @@ is removed. Full detail in **[docs/INVARIANTS.md](docs/INVARIANTS.md)**.
 
 | # | Invariant | Mechanism | Proved by |
 |---|---|---|---|
-| 1 | only `VERIFIED` may enter `PAYING` | transition table + compare-and-swap + a Postgres trigger | `money-safety.test.ts` â†’ *invariant 1* |
+| 1 | only `VERIFIED` may enter `PAYING` | transition table + compare-and-swap + a Postgres trigger | `money-safety.test.ts` → *invariant 1* |
 | 2 | the gate fails closed; the model can never cause a payout | `evaluateGate` is pure; only its boolean gates the transition | *invariant 2* + the happy path |
 | 3 | exactly one payout per bounty | `payouts.bounty_id UNIQUE`, inserted **before** the provider call | *invariant 3* + `npm run rehearse` |
 | 4 | the idempotency key is deterministic | `gt-bounty-{id}-v1`, never random, never a timestamp | *invariant 4* |
@@ -177,16 +177,16 @@ choice, and it is the one that risks paying a stranger twice.
 
 | Route | What it is |
 |---|---|
-| `/` | the requester console â€” post a bounty, copy the claim link, watch the ledger |
+| `/` | the requester console — post a bounty, copy the claim link, watch the ledger |
 | `/claim/[token]` | the mobile capture screen, designed at 390 px first |
-| `/bounty/[id]` | the evidence record â€” the photo, the model, all six rules, the payout, the audit trail |
-| `/ops` | the AG Grid ops ledger â€” server-paginated, custom renderers, custom theme, a natural-language query layer |
+| `/bounty/[id]` | the evidence record — the photo, the model, all six rules, the payout, the audit trail |
+| `/ops` | the AG Grid ops ledger — server-paginated, custom renderers, custom theme, a natural-language query layer |
 
 The ops ledger uses **AG Grid Community** with the **infinite row model**
 (the Server-Side Row Model is Enterprise-only, and this repository is
 GPL-3.0). It has a custom theme built from the app's own tokens, six custom
-cell renderers â€” state pill, verdict badge, amount, signed evidence thumbnail,
-identifier, end-to-end latency â€” and a hand-built **deterministic**
+cell renderers — state pill, verdict badge, amount, signed evidence thumbnail,
+identifier, end-to-end latency — and a hand-built **deterministic**
 natural-language layer that compiles *"show failed payouts"* into the same
 filter model a column filter produces, and says what it understood. An
 unrecognised phrase returns *"I did not understand"* with the supported
@@ -198,17 +198,17 @@ intents. **It never guesses**, because a wrong filter is worse than no filter.
 
 ```
 src/
-â”œâ”€â”€ app/                 the four screens, the five API routes, error pages
-â”œâ”€â”€ components/
-â”‚   â”œâ”€â”€ ui/              the primitive set: Button, Panel, StatusPill, Moneyâ€¦
-â”‚   â”œâ”€â”€ console/         the requester console
-â”‚   â”œâ”€â”€ claim/           the capture screen and the browser photo pipeline
-â”‚   â”œâ”€â”€ bounty/          the evidence record and the six-rule checklist
-â”‚   â””â”€â”€ ops/             the AG Grid, its renderers and the NL query layer
-â”œâ”€â”€ domain/              PURE. No I/O, no env, no clock. types, errors, geo,
-â”‚                        money, state-machine, gate
-â”œâ”€â”€ ops/                 the pure ledger SQL builder
-â””â”€â”€ server/              env, db, tokens, storage, vision, paypal, services
+├── app/                 the four screens, the five API routes, error pages
+├── components/
+│   ├── ui/              the primitive set: Button, Panel, StatusPill, Money…
+│   ├── console/         the requester console
+│   ├── claim/           the capture screen and the browser photo pipeline
+│   ├── bounty/          the evidence record and the six-rule checklist
+│   └── ops/             the AG Grid, its renderers and the NL query layer
+├── domain/              PURE. No I/O, no env, no clock. types, errors, geo,
+│                        money, state-machine, gate
+├── ops/                 the pure ledger SQL builder
+└── server/              env, db, tokens, storage, vision, paypal, services
 db/migrations/           numbered SQL, applied by our own runner
 scripts/                 migrate, guard scripts, the rehearsal
 tests/unit/              the pure domain
@@ -236,5 +236,5 @@ repository is GPL-3.0.** The project therefore uses AG Grid **Community**
 package, a licence key, a Server-Side Row Model or a legacy CSS theme ever
 appears.
 
-The research that justified the idea â€” including a 225-repository census of
-the competition â€” is in [`docs/research/`](docs/research/).
+The research that justified the idea — including a 225-repository census of
+the competition — is in [`docs/research/`](docs/research/).
