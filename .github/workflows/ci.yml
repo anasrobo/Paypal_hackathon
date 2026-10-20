@@ -1,0 +1,77 @@
+name: CI
+
+# CI runs tests only. It never deploys. The live demo is deployed explicitly
+# so that a stray push can never take it down.
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: groundtruth_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # The integration tests need a real Postgres. The money-safety
+      # invariants ARE database constraints, so mocking them would prove
+      # nothing.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/groundtruth_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/groundtruth_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci`, never `npm install` — a lockfile that drifts breaks installs.
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Protocol check
+        run: npm run check:protocol
+
+      - name: Gitignore sentinels
+        run: npm run check:ignore
+
+      - name: No live PayPal endpoint
+        run: npm run check:paypal
+
+      - name: AG Grid licence boundary
+        run: npm run check:aggrid
+
+      - name: No committed secrets
+        run: npm run check:secrets
+
+      - name: Build
+        run: npm run build
+
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      - name: Unit and integration tests
+        run: npm test
