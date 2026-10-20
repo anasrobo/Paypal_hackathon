@@ -195,14 +195,22 @@ export interface BountyKpis {
  * moved, money that is moving, money that was refused.
  */
 export async function getBountyKpis(sql: Sql): Promise<BountyKpis> {
+  // The connection transforms every column name to camel case, so the row's
+  // keys are `inFlight` and `paidCents` — NOT `in_flight` and `paid_cents`.
+  //
+  // Reading the snake_case name returns `undefined`, and
+  // `Number(undefined ?? 0)` is a very convincing zero. That bug shipped once:
+  // the console showed "18 paid" next to "$0.00 paid out". The types below
+  // are written in camel case on purpose, so the compiler agrees with the
+  // runtime.
   const [row] = await sql<
     {
       total: number;
-      in_flight: number;
+      inFlight: number;
       paid: number;
       failed: number;
       posted: number;
-      paid_cents: number;
+      paidCents: number;
     }[]
   >`
     SELECT
@@ -221,11 +229,11 @@ export async function getBountyKpis(sql: Sql): Promise<BountyKpis> {
 
   return {
     total: Number(row?.total ?? 0),
-    inFlight: Number(row?.in_flight ?? 0),
+    inFlight: Number(row?.inFlight ?? 0),
     paid: Number(row?.paid ?? 0),
     failed: Number(row?.failed ?? 0),
     posted: Number(row?.posted ?? 0),
-    paidCents: Number(row?.paid_cents ?? 0),
+    paidCents: Number(row?.paidCents ?? 0),
   };
 }
 
